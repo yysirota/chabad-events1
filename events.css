@@ -1235,3 +1235,13 @@
         padding-right:10px;
     }
 }
+/* Pull the events content closer to the hero image */
+#cfle-events{
+    padding-top:15px;
+}
+
+@media (max-width:480px){
+    #cfle-events{
+        padding-top:10px;
+    }
+}
