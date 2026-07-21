@@ -1037,3 +1037,187 @@
         gap:5px;
     }
 }
+
+/* ============================================================
+   UPCOMING AT CHABAD — V5.1 FINISHING ADJUSTMENTS
+   ============================================================ */
+
+/* Force the selected section heading, such as “All,” to gold. */
+#cfle-events .cfle-section-title{
+    color:#b97c0d !important;
+}
+
+#cfle-events .cfle-section-title > small{
+    color:#846a45 !important;
+}
+
+/* Underline only the location words, not the map pin. */
+#cfle-events .cfle-location{
+    border-bottom:0 !important;
+    text-decoration:none !important;
+}
+
+#cfle-events .cfle-location > .cfle-nowrap{
+    display:inline-block;
+    border-bottom:1px solid rgba(166,110,9,.55);
+    line-height:1.15;
+}
+
+#cfle-events .cfle-location:hover > .cfle-nowrap{
+    border-bottom-color:#7d5000;
+}
+
+/* Sharper and more noticeable location pin. */
+#cfle-events .cfle-location-icon{
+    width:20px;
+    height:22px;
+    color:#b77908;
+}
+
+#cfle-events .cfle-location-icon svg{
+    width:20px;
+    height:22px;
+}
+
+#cfle-events .cfle-location-icon svg path{
+    fill:currentColor;
+    stroke:currentColor;
+    stroke-width:.6;
+}
+
+#cfle-events .cfle-location-icon svg circle{
+    fill:#fff;
+    stroke:none;
+}
+
+/* Larger, properly proportioned calendar-service logos. */
+#cfle-events .cfle-action-btn{
+    justify-content:flex-start;
+    padding-left:13px;
+    padding-right:13px;
+}
+
+#cfle-events .cfle-action-btn > span:last-child{
+    flex:1 1 auto;
+    padding-right:25px;
+    text-align:center;
+}
+
+#cfle-events .cfle-action-icon,
+#cfle-events .cfle-google-logo,
+#cfle-events .cfle-apple-logo{
+    flex:0 0 28px;
+    width:28px;
+    height:28px;
+}
+
+#cfle-events .cfle-action-icon svg,
+#cfle-events .cfle-google-logo svg,
+#cfle-events .cfle-apple-logo svg{
+    display:block;
+    width:28px;
+    height:28px;
+}
+
+#cfle-events .cfle-calendar-apple .cfle-apple-logo{
+    color:#fff;
+}
+
+/* The old CSS-generated Google letter is no longer used. */
+#cfle-events .cfle-google-g{
+    display:none !important;
+}
+
+/* ============================================================
+   MOBILE CENTERING AND THREE-OVER-TWO FILTER LAYOUT
+   ============================================================ */
+
+@media (max-width:480px){
+
+    /* Center the main filters. */
+    #cfle-events .cfle-top-filters{
+        display:grid;
+        grid-template-columns:repeat(6,minmax(0,1fr));
+        justify-content:center;
+        align-items:center;
+        gap:8px;
+        width:100%;
+        margin-left:auto;
+        margin-right:auto;
+    }
+
+    /* First row: All, Featured, Holidays. */
+    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(1){
+        grid-column:1/3;
+    }
+
+    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(2){
+        grid-column:3/5;
+    }
+
+    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(3){
+        grid-column:5/7;
+    }
+
+    /* Second row: Youth and Classes & Learning. */
+    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(4){
+        grid-column:2/4;
+    }
+
+    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(5){
+        grid-column:4/6;
+    }
+
+    #cfle-events .cfle-top-filters .cfle-filter-btn{
+        width:100%;
+        min-width:0;
+        padding-left:7px;
+        padding-right:7px;
+        text-align:center;
+        white-space:nowrap;
+    }
+
+    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(5){
+        font-size:12px;
+    }
+
+    /* Center “17 upcoming programs.” */
+    #cfle-events .cfle-count{
+        width:100%;
+        text-align:center;
+    }
+
+    /* Center “All now showing” and Spotlight on phones. */
+    #cfle-events .cfle-section-title{
+        justify-content:center;
+        width:100%;
+        text-align:center;
+    }
+
+    #cfle-events .cfle-subtle{
+        text-align:center;
+    }
+
+    /* Keep the larger logos while retaining compact mobile pills. */
+    #cfle-events .cfle-action-btn{
+        min-height:43px;
+        padding-left:9px;
+        padding-right:9px;
+    }
+
+    #cfle-events .cfle-action-btn > span:last-child{
+        padding-right:18px;
+        font-size:10.5px;
+    }
+
+    #cfle-events .cfle-action-icon,
+    #cfle-events .cfle-google-logo,
+    #cfle-events .cfle-apple-logo,
+    #cfle-events .cfle-action-icon svg,
+    #cfle-events .cfle-google-logo svg,
+    #cfle-events .cfle-apple-logo svg{
+        width:24px;
+        height:24px;
+        flex-basis:24px;
+    }
+}
