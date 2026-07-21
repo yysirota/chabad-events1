@@ -14,7 +14,7 @@ if(base&&!d.getElementById("cfle-events-css")){
     stylesheet.id="cfle-events-css";
     stylesheet.rel="stylesheet";
     stylesheet.type="text/css";
-    stylesheet.href=base+"events.css?v=5.3";
+    stylesheet.href=base+"events.css?v=5.4";
 
     head.appendChild(stylesheet);
 }
@@ -1461,9 +1461,6 @@ function render(){
             '<span class="cfle-star">&#9733;</span>'+
             '<span>Spotlight</span>'+
             '</h2>'+
-            '<p class="cfle-subtle">'+
-            'Promoted programs always stay visible here.'+
-            '</p>'+
             '<div class="cfle-spot-grid count-'+
             (
                 spotlightEvents.length>4?
