@@ -14,7 +14,7 @@ if(base&&!d.getElementById("cfle-events-css")){
     stylesheet.id="cfle-events-css";
     stylesheet.rel="stylesheet";
     stylesheet.type="text/css";
-    stylesheet.href=base+"events.css?v=5.5";
+    stylesheet.href=base+"events.css?v=5.6";
 
     head.appendChild(stylesheet);
 }
@@ -505,40 +505,78 @@ function extractMarkers(title){
     var cleanTitle=String(title||"");
 
     /*
-     * Short Spotlight marker:
-     * [S] or (S)
+     * These are the recognized control markers.
+     * They can be entered with square brackets or parentheses.
      *
-     * Uppercase and lowercase both work.
+     * Examples:
+     * [S] or (S)
+     * [Holiday] or (Holiday)
+     * [Youth] or (Youth)
      */
-    cleanTitle=cleanTitle.replace(
-        /(?:\[S\]|\(S\))/gi,
-        function(){
+    var allowedMarkers={
+        "s":true,
+        "spotlight":true,
 
-            markers.push("s");
+        "featured":true,
+        "feature":true,
 
-            return "";
-        }
-    );
+        "holiday":true,
+        "holidays":true,
+
+        "youth":true,
+        "teen":true,
+        "kids":true,
+        "children":true,
+        "family":true,
+
+        "learning":true,
+        "class":true,
+        "classes":true,
+        "learning class":true,
+        "study":true,
+
+        "recurring":true,
+        "weekly":true,
+        "ongoing":true,
+        "monthly":true,
+
+        "one-time":true,
+        "onetime":true,
+        "special":true
+    };
 
     /*
-     * Standard square-bracket markers continue to work:
-     * [Spotlight]
-     * [Featured]
-     * [Holiday]
-     * [Youth]
-     * [Learning]
-     * [Recurring]
-     * [One-Time]
+     * Read recognized markers from either:
+     *
+     * [Marker]
+     * (Marker)
+     *
+     * Ordinary parentheses that are not recognized markers
+     * remain visible in the event title.
      */
     cleanTitle=cleanTitle.replace(
-        /\[([^\]]+)\]/g,
-        function(fullMarker,markerText){
+        /\[([^\]]+)\]|\(([^)]+)\)/g,
+        function(fullMarker,squareMarker,roundMarker){
 
-            markers.push(
-                cleanText(markerText)
+            var markerText=cleanText(
+                squareMarker||
+                roundMarker||
+                ""
             );
 
-            return "";
+            var normalizedMarker=
+                markerText.toLowerCase();
+
+            if(allowedMarkers[normalizedMarker]){
+
+                markers.push(
+                    normalizedMarker
+                );
+
+                return "";
+            }
+
+            return fullMarker;
         }
     );
 
@@ -546,7 +584,7 @@ function extractMarkers(title){
         markers:markers,
         clean:cleanText(cleanTitle)
     };
-}
+}    
     
 function parseLocation(item){
 
@@ -1099,12 +1137,76 @@ function visibleMainEvents(){
 
 function visibleSpotlights(){
 
-    return state.events.filter(function(eventItem){
+    var now=new Date();
+    var seenRecurringTitles={};
+    var spotlightEvents=[];
 
-        return eventItem.spotlight;
-    });
+    /*
+     * state.events is already sorted from the nearest
+     * occurrence to the furthest occurrence.
+     */
+    state.events.forEach(
+        function(eventItem){
+
+            var eventDate;
+            var recurringKey;
+
+            if(!eventItem.spotlight){
+                return;
+            }
+
+            eventDate=getEventDate(
+                eventItem
+            );
+
+            /*
+             * Do not keep a Spotlight occurrence after
+             * its starting time has passed.
+             *
+             * The next recurring occurrence will then
+             * automatically become the visible Spotlight.
+             */
+            if(
+                eventDate&&
+                eventDate.getTime()<
+                now.getTime()
+            ){
+                return;
+            }
+
+            /*
+             * For recurring programs, show only the closest
+             * upcoming occurrence sharing the same title.
+             */
+            if(eventItem.recurring){
+
+                recurringKey=
+                    normalized(
+                        eventItem.title
+                    );
+
+                if(
+                    seenRecurringTitles[
+                        recurringKey
+                    ]
+                ){
+                    return;
+                }
+
+                seenRecurringTitles[
+                    recurringKey
+                ]=true;
+            }
+
+            spotlightEvents.push(
+                eventItem
+            );
+        }
+    );
+
+    return spotlightEvents;
 }
-
+    
 function tagHtml(type,text){
 
     var className="cfle-tag";
