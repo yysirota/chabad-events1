@@ -1520,3 +1520,278 @@
         flex-basis:24px !important;
     }
 }
+
+/* ============================================================
+   VERSION 7.0 — PAGE-DRIVEN EVENT SOURCE
+   ============================================================ */
+
+.cfle-native-index-source{
+    display:none !important;
+}
+
+#cfle-events .cfle-calendar-buttons{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    width:100%;
+}
+
+#cfle-events .cfle-calendar-buttons .cfle-action-btn{
+    min-width:0;
+}
+
+/* ============================================================
+   HOMEPAGE PAGE-DRIVEN UPCOMING EVENTS
+   ============================================================ */
+
+.cfle-home-events-module{
+    min-width:0;
+}
+
+.cfle-home-events{
+    width:100%;
+    max-width:360px;
+    margin:0 auto;
+    text-align:center;
+}
+
+.cfle-home-events-title{
+    margin:0 0 15px !important;
+    color:#e5a900 !important;
+    font-family:Arial,Helvetica,sans-serif !important;
+    font-size:14px !important;
+    line-height:1.2 !important;
+    font-weight:900 !important;
+    letter-spacing:.08em !important;
+    text-transform:uppercase !important;
+}
+
+.cfle-home-events-list{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap:11px;
+    margin:0 0 15px;
+}
+
+.cfle-home-event{
+    display:block;
+    padding:0 4px;
+    color:#1e5e9e !important;
+    text-align:center;
+    text-decoration:none !important;
+}
+
+.cfle-home-event:hover,
+.cfle-home-event:focus{
+    color:#124778 !important;
+    text-decoration:none !important;
+}
+
+.cfle-home-event-date{
+    display:block;
+    margin:0 0 2px;
+    color:#8b7961;
+    font-size:11px;
+    line-height:1.3;
+    font-weight:500;
+}
+
+.cfle-home-event strong{
+    display:block;
+    color:inherit;
+    font-size:13px;
+    line-height:1.25;
+    font-weight:800;
+}
+
+.cfle-home-view-more{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:30px;
+    padding:6px 11px;
+    border:2px solid #e5a900;
+    color:#1f5f9f !important;
+    background:transparent;
+    font-size:10px;
+    line-height:1.1;
+    font-weight:900;
+    letter-spacing:.03em;
+    text-decoration:none !important;
+    text-transform:uppercase;
+    transition:background .18s ease,color .18s ease,transform .18s ease;
+}
+
+.cfle-home-view-more:hover,
+.cfle-home-view-more:focus{
+    background:#e5a900;
+    color:#fff !important;
+    transform:translateY(-1px);
+    text-decoration:none !important;
+}
+
+.cfle-home-events-empty{
+    margin:0 0 14px;
+    color:#7d6e5a;
+    font-size:12px;
+    line-height:1.4;
+}
+
+/* ============================================================
+   PAST EVENTS PAGE
+   ============================================================ */
+
+#cfle-past-events{
+    width:calc(100% - 40px);
+    max-width:1180px;
+    margin:0 auto;
+    padding:20px 0 65px;
+    box-sizing:border-box;
+    color:#332718;
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+#cfle-past-events *{
+    box-sizing:border-box;
+}
+
+#cfle-past-events .cfle-list{
+    display:flex;
+    flex-direction:column;
+    gap:13px;
+}
+
+#cfle-past-events .cfle-card{
+    display:grid;
+    grid-template-columns:105px minmax(0,1fr) 175px;
+    align-items:center;
+    gap:18px;
+    min-width:0;
+    padding:17px;
+    border:1px solid #d8b86d;
+    border-radius:16px;
+    background:#fff;
+    box-shadow:0 7px 20px rgba(91,61,10,.08);
+}
+
+#cfle-past-events .cfle-date{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:94px;
+    padding:10px;
+    border:1px solid #dfbf76;
+    border-radius:14px;
+    background:#fffaf0;
+    text-align:center;
+}
+
+#cfle-past-events .cfle-date-month,
+#cfle-past-events .cfle-date-weekday{
+    color:#b67808;
+    font-size:13px;
+    line-height:1.1;
+    font-weight:900;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+}
+
+#cfle-past-events .cfle-date-day{
+    margin:3px 0;
+    color:#111;
+    font-size:37px;
+    line-height:1;
+    font-weight:900;
+}
+
+#cfle-past-events .cfle-body{
+    min-width:0;
+}
+
+#cfle-past-events .cfle-title{
+    display:inline-block;
+    margin:0 0 7px;
+    color:#1e5e9e !important;
+    font-family:Georgia,"Times New Roman",serif;
+    font-size:25px;
+    line-height:1.2;
+    font-weight:700;
+    text-decoration:none !important;
+}
+
+#cfle-past-events .cfle-title:hover{
+    color:#123f6b !important;
+}
+
+#cfle-past-events .cfle-tags{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin:0 0 8px;
+}
+
+#cfle-past-events .cfle-meta{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:6px 12px;
+    color:#665744;
+    font-size:14px;
+}
+
+#cfle-past-events .cfle-actions{
+    width:100%;
+}
+
+#cfle-past-events .cfle-detail-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-height:39px;
+    padding:8px 13px;
+    border:1px solid #c88a13;
+    border-radius:999px;
+    background:linear-gradient(135deg,#e2ad39,#c98710);
+    color:#fff !important;
+    font-size:13px;
+    line-height:1.1;
+    font-weight:800;
+    text-decoration:none !important;
+}
+
+@media (max-width:700px){
+    #cfle-events .cfle-calendar-buttons{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+
+    #cfle-past-events{
+        width:calc(100% - 20px);
+        padding-top:10px;
+    }
+
+    #cfle-past-events .cfle-card{
+        grid-template-columns:82px minmax(0,1fr);
+        gap:12px;
+        padding:13px;
+    }
+
+    #cfle-past-events .cfle-date{
+        min-height:82px;
+        padding:8px;
+    }
+
+    #cfle-past-events .cfle-date-day{
+        font-size:32px;
+    }
+
+    #cfle-past-events .cfle-title{
+        font-size:21px;
+    }
+
+    #cfle-past-events .cfle-actions{
+        grid-column:1/-1;
+    }
+}
