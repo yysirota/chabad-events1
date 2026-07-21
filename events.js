@@ -14,7 +14,7 @@ if(base&&!d.getElementById("cfle-events-css")){
     stylesheet.id="cfle-events-css";
     stylesheet.rel="stylesheet";
     stylesheet.type="text/css";
-    stylesheet.href=base+"events.css?v=5.4";
+    stylesheet.href=base+"events.css?v=5.5";
 
     head.appendChild(stylesheet);
 }
@@ -502,12 +502,41 @@ function saveCache(html){
 function extractMarkers(title){
 
     var markers=[];
+    var cleanTitle=String(title||"");
 
-    var cleanTitle=String(title||"").replace(
+    /*
+     * Short Spotlight marker:
+     * [S] or (S)
+     *
+     * Uppercase and lowercase both work.
+     */
+    cleanTitle=cleanTitle.replace(
+        /(?:\[S\]|\(S\))/gi,
+        function(){
+
+            markers.push("s");
+
+            return "";
+        }
+    );
+
+    /*
+     * Standard square-bracket markers continue to work:
+     * [Spotlight]
+     * [Featured]
+     * [Holiday]
+     * [Youth]
+     * [Learning]
+     * [Recurring]
+     * [One-Time]
+     */
+    cleanTitle=cleanTitle.replace(
         /\[([^\]]+)\]/g,
-        function(full,marker){
+        function(fullMarker,markerText){
 
-            markers.push(cleanText(marker));
+            markers.push(
+                cleanText(markerText)
+            );
 
             return "";
         }
@@ -518,7 +547,7 @@ function extractMarkers(title){
         clean:cleanText(cleanTitle)
     };
 }
-
+    
 function parseLocation(item){
 
     var link=qs(
@@ -716,22 +745,43 @@ function inferCategories(eventItem){
         );
     }
 
-    if(hasMarker(["spotlight"])){
+    /*
+     * Spotlight:
+     * [Spotlight]
+     * [S]
+     * (S)
+     */
+    if(
+        hasMarker([
+            "spotlight",
+            "s"
+        ])
+    ){
 
         eventItem.spotlight=true;
     }
 
+    /*
+     * Spotlight events are automatically Featured.
+     * These also independently trigger Featured:
+     * [Featured]
+     * [Feature]
+     */
     if(
         hasMarker([
             "featured",
             "feature",
-            "spotlight"
+            "spotlight",
+            "s"
         ])
     ){
 
         eventItem.featured=true;
     }
 
+    /*
+     * Holidays category
+     */
     if(
         hasMarker([
             "holiday",
@@ -739,9 +789,15 @@ function inferCategories(eventItem){
         ])
     ){
 
-        addCategory(eventItem,"holidays");
+        addCategory(
+            eventItem,
+            "holidays"
+        );
     }
 
+    /*
+     * Youth category
+     */
     if(
         hasMarker([
             "youth",
@@ -752,9 +808,15 @@ function inferCategories(eventItem){
         ])
     ){
 
-        addCategory(eventItem,"youth");
+        addCategory(
+            eventItem,
+            "youth"
+        );
     }
 
+    /*
+     * Classes & Learning category
+     */
     if(
         hasMarker([
             "learning",
@@ -765,9 +827,15 @@ function inferCategories(eventItem){
         ])
     ){
 
-        addCategory(eventItem,"learning");
+        addCategory(
+            eventItem,
+            "learning"
+        );
     }
 
+    /*
+     * Recurring program markers
+     */
     if(
         hasMarker([
             "recurring",
@@ -780,6 +848,9 @@ function inferCategories(eventItem){
         eventItem.recurring=true;
     }
 
+    /*
+     * One-time program markers
+     */
     if(
         hasMarker([
             "one-time",
@@ -791,40 +862,76 @@ function inferCategories(eventItem){
         eventItem.recurring=false;
     }
 
+    /*
+     * Automatic holiday recognition from the visible title
+     */
     if(
-        /rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tu b.?shvat|tisha b.?av|selichot|high holiday/.test(title)
+        /rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tu b.?shvat|tisha b.?av|selichot|high holiday/.test(
+            title
+        )
     ){
 
-        addCategory(eventItem,"holidays");
+        addCategory(
+            eventItem,
+            "holidays"
+        );
     }
 
+    /*
+     * Automatic youth recognition from the visible title
+     */
     if(
-        /youth|teen|cteen|child|children|kid|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/.test(title)
+        /youth|teen|cteen|child|children|kid|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/.test(
+            title
+        )
     ){
 
-        addCategory(eventItem,"youth");
+        addCategory(
+            eventItem,
+            "youth"
+        );
     }
 
+    /*
+     * Automatic learning recognition from the visible title
+     */
     if(
-        /class|learning|learn|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox.*learn|shiur/.test(title)
+        /class|learning|learn|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox.*learn|shiur/.test(
+            title
+        )
     ){
 
-        addCategory(eventItem,"learning");
+        addCategory(
+            eventItem,
+            "learning"
+        );
     }
 
-    if(/featured|spotlight/.test(title)){
+    /*
+     * Automatic Featured recognition from the visible title
+     */
+    if(
+        /featured|spotlight/.test(
+            title
+        )
+    ){
 
         eventItem.featured=true;
     }
 
+    /*
+     * Automatic recurring recognition from the visible title
+     */
     if(
-        /weekly|every monday|every tuesday|every wednesday|every thursday|every friday|every saturday|every sunday|ongoing|monthly/.test(title)
+        /weekly|every monday|every tuesday|every wednesday|every thursday|every friday|every saturday|every sunday|ongoing|monthly/.test(
+            title
+        )
     ){
 
         eventItem.recurring=true;
     }
 }
-
+    
 function finalizeEvents(events){
 
     var titleCounts={};
