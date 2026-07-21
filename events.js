@@ -1,34 +1,21 @@
 (function(){
 "use strict";
 
-if(window.CFLE_UPCOMING_EVENTS_V621_LOADED){
+if(window.CFLE_PAGE_EVENTS_V70_LOADED){
     return;
 }
-window.CFLE_UPCOMING_EVENTS_V621_LOADED=true;
+window.CFLE_PAGE_EVENTS_V70_LOADED=true;
 
 var d=document;
-var head=d.getElementsByTagName("head")[0]||d.documentElement;
-var currentScript=d.currentScript||d.getElementsByTagName("script")[d.getElementsByTagName("script").length-1];
-var scriptSource=currentScript&&currentScript.src?currentScript.src:"";
-var base=scriptSource.substring(0,scriptSource.lastIndexOf("/")+1);
-var stylesheet=d.getElementById("cfle-events-css");
-
-if(base){
-    if(!stylesheet){
-        stylesheet=d.createElement("link");
-        stylesheet.id="cfle-events-css";
-        stylesheet.rel="stylesheet";
-        stylesheet.type="text/css";
-        head.appendChild(stylesheet);
-    }
-    stylesheet.href=base+"events.css?v=6.2.2";
-}
-
 var CFG={
-    feedUrl:"/templates/events.htm",
-    pageUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
-    cacheKey:"cfleEventsV621",
-    cacheMs:86400000
+    sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
+    upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
+    pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
+    parentAid:"7437974",
+    cacheKey:"cflePageEventsV70",
+    cacheMs:300000,
+    homepageLimit:5,
+    defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024"
 };
 
 var state={
@@ -51,8 +38,18 @@ function qsa(selector,parent){
 function cleanText(value){
     return String(value||"")
         .replace(/\u00a0/g," ")
-        .replace(/\s+/g," ")
+        .replace(/[\t\r]+/g," ")
+        .replace(/ +/g," ")
+        .replace(/\s*\n\s*/g,"\n")
         .replace(/^\s+|\s+$/g,"");
+}
+
+function oneLine(value){
+    return cleanText(value).replace(/\s+/g," ");
+}
+
+function normalized(value){
+    return oneLine(value).toLowerCase();
 }
 
 function escapeHtml(value){
@@ -76,27 +73,18 @@ function absoluteUrl(url){
     return anchor.href;
 }
 
-function normalized(value){
-    return cleanText(value).toLowerCase();
+function canonicalUrl(url){
+    var anchor=d.createElement("a");
+    anchor.href=url||"";
+    return (anchor.pathname||"").replace(/\/+$/g,"").toLowerCase();
 }
 
 function slug(value){
     return normalized(value)
+        .replace(/[’']/g,"")
+        .replace(/&/g," and ")
         .replace(/[^a-z0-9]+/g,"-")
         .replace(/^-+|-+$/g,"");
-}
-
-function titleKey(value){
-    return normalized(value)
-        .replace(/[\'’]/g,"")
-        .replace(/&/g," and ")
-        .replace(/[^a-z0-9]+/g," ")
-        .replace(/^\s+|\s+$/g,"")
-        .replace(/\s+/g," ");
-}
-
-function isAppleDevice(){
-    return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent||"");
 }
 
 function pad(number){
@@ -106,24 +94,37 @@ function pad(number){
 
 function monthNumber(name){
     var months={
-        january:1,
-        february:2,
-        march:3,
-        april:4,
+        jan:1,january:1,
+        feb:2,february:2,
+        mar:3,march:3,
+        apr:4,april:4,
         may:5,
-        june:6,
-        july:7,
-        august:8,
-        september:9,
-        october:10,
-        november:11,
-        december:12
+        jun:6,june:6,
+        jul:7,july:7,
+        aug:8,august:8,
+        sep:9,sept:9,september:9,
+        oct:10,october:10,
+        nov:11,november:11,
+        dec:12,december:12
     };
     return months[String(name||"").toLowerCase()]||0;
 }
 
+function monthName(number){
+    return [
+        "","January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    ][number]||"";
+}
+
+function weekdayName(date){
+    return [
+        "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
+    ][date.getDay()];
+}
+
 function parseClock(value){
-    var match=cleanText(value).match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+    var match=oneLine(value).match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
     var hour;
     if(!match){
         return null;
@@ -137,244 +138,606 @@ function parseClock(value){
     }
     return {
         hour:hour,
-        minute:parseInt(match[2],10)
+        minute:parseInt(match[2]||"0",10),
+        label:match[1]+(match[2]?":"+match[2]:"")+" "+match[3].toUpperCase()
     };
 }
 
-function parseDateLabel(value){
-    var match=cleanText(value).match(/(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Shabbat)\s*,?\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*,?\s*(\d{4})/i);
+function parseDatePart(value){
+    var text=oneLine(value);
+    var match;
+    var year;
+    var month;
+    var day;
+
+    match=text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+    if(match){
+        return {
+            year:parseInt(match[1],10),
+            month:parseInt(match[2],10),
+            day:parseInt(match[3],10),
+            raw:match[0]
+        };
+    }
+
+    match=text.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
+    if(match){
+        return {
+            year:parseInt(match[3],10),
+            month:parseInt(match[1],10),
+            day:parseInt(match[2],10),
+            raw:match[0]
+        };
+    }
+
+    match=text.match(/\b(January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(20\d{2})\b/i);
+    if(match){
+        month=monthNumber(match[1]);
+        day=parseInt(match[2],10);
+        year=parseInt(match[3],10);
+        return {
+            year:year,
+            month:month,
+            day:day,
+            raw:match[0]
+        };
+    }
+
+    match=text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*,?\s*(20\d{2})\b/i);
+    if(match){
+        return {
+            year:parseInt(match[3],10),
+            month:monthNumber(match[2]),
+            day:parseInt(match[1],10),
+            raw:match[0]
+        };
+    }
+
+    return null;
+}
+
+function parseEventDateTime(value){
+    var text=oneLine(value);
+    var date=parseDatePart(text);
+    var timeRange;
+    var times=[];
+    var regex=/(\d{1,2}(?::\d{2})?\s*(?:am|pm))/ig;
+    var match;
+    var startClock;
+    var endClock;
+    var start;
+    var end;
+    var explicitEndDate;
+    var endMatch;
+
+    if(!date){
+        return null;
+    }
+
+    while((match=regex.exec(text))!==null){
+        times.push(match[1]);
+    }
+
+    startClock=times.length?parseClock(times[0]):null;
+    endClock=times.length>1?parseClock(times[1]):null;
+
+    start=new Date(
+        date.year,
+        date.month-1,
+        date.day,
+        startClock?startClock.hour:0,
+        startClock?startClock.minute:0,
+        0,
+        0
+    );
+
+    endMatch=text.match(/(?:End|Ends|Through|Until)\s*:\s*([^|;]+)/i);
+    explicitEndDate=endMatch?parseDatePart(endMatch[1]):null;
+
+    if(explicitEndDate){
+        end=new Date(
+            explicitEndDate.year,
+            explicitEndDate.month-1,
+            explicitEndDate.day,
+            endClock?endClock.hour:23,
+            endClock?endClock.minute:59,
+            endClock?0:59,
+            endClock?0:999
+        );
+    } else if(endClock){
+        end=new Date(
+            date.year,
+            date.month-1,
+            date.day,
+            endClock.hour,
+            endClock.minute,
+            0,
+            0
+        );
+        if(end.getTime()<=start.getTime()){
+            end.setDate(end.getDate()+1);
+        }
+    } else if(startClock){
+        end=new Date(start.getTime()+60*60*1000);
+    } else {
+        end=new Date(
+            date.year,
+            date.month-1,
+            date.day,
+            23,59,59,999
+        );
+    }
+
+    timeRange="";
+    if(startClock){
+        timeRange=startClock.label;
+        if(endClock){
+            timeRange+=" - "+endClock.label;
+        }
+    }
+
+    return {
+        start:start,
+        end:end,
+        allDay:!startClock,
+        time:timeRange,
+        date:{
+            year:date.year,
+            month:monthName(date.month),
+            day:date.day,
+            weekday:weekdayName(start),
+            label:weekdayName(start)+", "+monthName(date.month)+" "+date.day+", "+date.year
+        }
+    };
+}
+
+function parseYesNo(text,label){
+    var match=oneLine(text).match(new RegExp("(?:^|[;|\\n])\\s*"+label+"\\s*:\\s*(yes|no|on|off|true|false)","i"));
     if(!match){
         return null;
     }
-    return {
-        weekday:match[1],
-        month:match[2],
-        day:parseInt(match[3],10),
-        year:parseInt(match[4],10),
-        label:match[1]+", "+match[2]+" "+match[3]+", "+match[4]
-    };
+    return /yes|on|true/i.test(match[1]);
 }
 
-function eventTimeParts(eventItem){
-    var pieces=String(eventItem.time||"").split(/\s*-\s*/);
-    var start=parseClock(pieces[0]);
-    var end=parseClock(pieces[1]);
-    if(!start){
-        return null;
+function parsePlacement(text){
+    var value=normalized(text);
+    var placement={
+        upcoming:false,
+        homepage:false,
+        featured:false,
+        standalone:true,
+        recognized:false
+    };
+    var explicit;
+
+    if(/\bmajor event\b/.test(value)){
+        placement.upcoming=true;
+        placement.homepage=true;
+        placement.featured=true;
+        placement.standalone=false;
+        placement.recognized=true;
+    } else if(/\bregular event\b/.test(value)){
+        placement.upcoming=true;
+        placement.standalone=false;
+        placement.recognized=true;
+    } else if(/\bupcoming only\b/.test(value)){
+        placement.upcoming=true;
+        placement.standalone=false;
+        placement.recognized=true;
+    } else if(/\bhomepage only\b/.test(value)){
+        placement.homepage=true;
+        placement.standalone=false;
+        placement.recognized=true;
+    } else if(/\bstandalone\b/.test(value)){
+        placement.recognized=true;
     }
-    if(!end){
-        end={
-            hour:start.hour+1,
-            minute:start.minute
+
+    explicit=parseYesNo(text,"Upcoming");
+    if(explicit!==null){
+        placement.upcoming=explicit;
+        placement.recognized=true;
+    }
+
+    explicit=parseYesNo(text,"Homepage");
+    if(explicit!==null){
+        placement.homepage=explicit;
+        placement.recognized=true;
+    }
+
+    explicit=parseYesNo(text,"Featured");
+    if(explicit!==null){
+        placement.featured=explicit;
+        placement.recognized=true;
+    }
+
+    if(placement.upcoming||placement.homepage||placement.featured){
+        placement.standalone=false;
+    }
+
+    return placement;
+}
+
+function parseLabeledValue(text,label){
+    var match=cleanText(text).match(new RegExp("(?:^|\\n|[;|])\\s*"+label+"\\s*:\\s*([^\\n;|]+)","i"));
+    return match?oneLine(match[1]):"";
+}
+
+function parseCategory(text,title){
+    var explicit=normalized(parseLabeledValue(text,"Category"));
+    var combined=normalized((explicit?explicit+" ":"")+title);
+    if(/holiday|rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tisha b.?av|selichot/.test(combined)){
+        return "holidays";
+    }
+    if(/youth|teen|cteen|child|children|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/.test(combined)){
+        return "youth";
+    }
+    if(/learning|class|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox|shiur/.test(combined)){
+        return "learning";
+    }
+    return "";
+}
+
+function excludedArea(node){
+    var current=node;
+    var name;
+    while(current&&current!==d.documentElement){
+        name=(String(current.id||"")+" "+String(current.className||"")).toLowerCase();
+        if(/header|footer|menu|nav|breadcrumb|toolbar|quick.?link|site.?map|mobile.?drawer/.test(name)){
+            return true;
+        }
+        current=current.parentNode;
+    }
+    return false;
+}
+
+function meaningfulAnchorText(anchor){
+    var text=oneLine(anchor.textContent||anchor.innerText||"");
+    if(!text||/^(read more|more|view|details|learn more)$/i.test(text)){
+        return "";
+    }
+    return text;
+}
+
+function findItemContainer(anchor){
+    var node=anchor;
+    var depth=0;
+    var text;
+    var placement;
+    var dateInfo;
+    var anchorCount;
+
+    while(node&&depth<9){
+        node=node.parentNode;
+        depth++;
+        if(!node||node.nodeType!==1||/^(BODY|HTML)$/i.test(node.tagName||"")){
+            break;
+        }
+        if(excludedArea(node)){
+            return null;
+        }
+        text=cleanText(node.textContent||node.innerText||"");
+        placement=parsePlacement(text);
+        dateInfo=parseEventDateTime(text);
+        anchorCount=node.getElementsByTagName("a").length;
+        if(
+            dateInfo&&
+            placement.recognized&&
+            anchorCount<=8&&
+            text.length<2500
+        ){
+            return node;
+        }
+    }
+    return null;
+}
+
+function chooseImage(container){
+    var images=qsa("img",container);
+    var index;
+    var src;
+    for(index=0;index<images.length;index++){
+        src=images[index].getAttribute("src")||images[index].getAttribute("data-src")||"";
+        if(src&&!/spacer|clear|pixel|arrow|icon_print/i.test(src)){
+            return absoluteUrl(src);
+        }
+    }
+    return "";
+}
+
+function parseIndexEvents(doc){
+    var anchors=qsa('a[href*="/templates/"][href*="/aid/"]',doc);
+    var events=[];
+    var byUrl={};
+    var index;
+
+    for(index=0;index<anchors.length;index++){
+        var anchor=anchors[index];
+        var title=meaningfulAnchorText(anchor);
+        var href=absoluteUrl(anchor.getAttribute("href"));
+        var path=canonicalUrl(href);
+        var container;
+        var fullText;
+        var placement;
+        var dateInfo;
+        var location;
+        var category;
+        var eventItem;
+
+        if(!title||!href||byUrl[path]){
+            continue;
+        }
+        if(path.indexOf("/aid/"+CFG.parentAid+"/")>-1){
+            continue;
+        }
+        if(/past-events\.htm$/.test(path)){
+            continue;
+        }
+
+        container=findItemContainer(anchor);
+        if(!container){
+            continue;
+        }
+
+        fullText=cleanText(container.textContent||container.innerText||"");
+        placement=parsePlacement(fullText);
+        dateInfo=parseEventDateTime(fullText);
+
+        if(!placement.recognized||!dateInfo){
+            continue;
+        }
+
+        location=parseLabeledValue(fullText,"Location")||CFG.defaultLocation;
+        category=parseCategory(fullText,title);
+
+        eventItem={
+            id:"page-"+slug(title)+"-"+dateInfo.start.getTime(),
+            title:title,
+            url:href,
+            image:chooseImage(container),
+            start:dateInfo.start,
+            end:dateInfo.end,
+            allDay:dateInfo.allDay,
+            time:dateInfo.time,
+            date:dateInfo.date,
+            location:{
+                text:location,
+                name:location.split(",")[0]||location
+            },
+            categories:category?[category]:[],
+            featured:placement.featured,
+            homepage:placement.homepage,
+            upcoming:placement.upcoming,
+            standalone:placement.standalone,
+            recurring:/\b(recurring|weekly|monthly)\b/i.test(fullText),
+            sourceContainer:container
         };
+
+        byUrl[path]=eventItem;
+        events.push(eventItem);
     }
+
+    events.sort(function(first,second){
+        return first.start.getTime()-second.start.getTime();
+    });
+
+    return events;
+}
+
+function specialLoxEvent(){
+    var reference=new Date();
+    var daysUntilSunday=(7-reference.getDay())%7;
+    var start=new Date(
+        reference.getFullYear(),
+        reference.getMonth(),
+        reference.getDate()+daysUntilSunday,
+        10,0,0,0
+    );
+    if(daysUntilSunday===0&&reference.getTime()>new Date(
+        reference.getFullYear(),
+        reference.getMonth(),
+        reference.getDate(),
+        11,0,0,0
+    ).getTime()){
+        start.setDate(start.getDate()+7);
+    }
+    var end=new Date(start.getTime()+60*60*1000);
     return {
+        id:"page-lox-learn-"+start.getTime(),
+        title:"Lox & Learn",
+        url:absoluteUrl("/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm"),
+        image:"",
         start:start,
-        end:end
+        end:end,
+        allDay:false,
+        time:"10:00 AM - 11:00 AM",
+        date:{
+            year:start.getFullYear(),
+            month:monthName(start.getMonth()+1),
+            day:start.getDate(),
+            weekday:weekdayName(start),
+            label:weekdayName(start)+", "+monthName(start.getMonth()+1)+" "+start.getDate()+", "+start.getFullYear()
+        },
+        location:{
+            text:CFG.defaultLocation,
+            name:"Chabad of Fort Lee"
+        },
+        categories:["learning"],
+        featured:false,
+        homepage:true,
+        upcoming:true,
+        standalone:false,
+        recurring:true,
+        sourceContainer:null
     };
 }
 
-function eventDateObject(eventItem){
-    var time;
-    if(!eventItem.date){
-        return null;
+function addSpecialEvents(events){
+    var output=(events||[]).slice(0);
+    var lox=specialLoxEvent();
+    var exists=output.some(function(eventItem){
+        return canonicalUrl(eventItem.url)===canonicalUrl(lox.url)||normalized(eventItem.title)==="lox & learn";
+    });
+    if(!exists){
+        output.push(lox);
     }
-    time=eventTimeParts(eventItem);
-    time=time?time.start:{hour:12,minute:0};
-    return new Date(
-        eventItem.date.year,
-        monthNumber(eventItem.date.month)-1,
-        eventItem.date.day,
-        time.hour,
-        time.minute,
-        0,
-        0
-    );
+    output.sort(function(first,second){
+        return first.start.getTime()-second.start.getTime();
+    });
+    return output;
 }
 
-function eventEndDateObject(eventItem){
-    var times;
-    var start;
-    var end;
-    if(!eventItem.date){
-        return null;
+function serializeEvents(events){
+    return events.map(function(eventItem){
+        return {
+            id:eventItem.id,
+            title:eventItem.title,
+            url:eventItem.url,
+            image:eventItem.image,
+            start:eventItem.start.getTime(),
+            end:eventItem.end.getTime(),
+            allDay:eventItem.allDay,
+            time:eventItem.time,
+            date:eventItem.date,
+            location:eventItem.location,
+            categories:eventItem.categories,
+            featured:eventItem.featured,
+            homepage:eventItem.homepage,
+            upcoming:eventItem.upcoming,
+            standalone:eventItem.standalone,
+            recurring:eventItem.recurring
+        };
+    });
+}
+
+function hydrateEvents(events){
+    return (events||[]).map(function(eventItem){
+        eventItem.start=new Date(eventItem.start);
+        eventItem.end=new Date(eventItem.end);
+        eventItem.sourceContainer=null;
+        return eventItem;
+    });
+}
+
+function readCache(){
+    try{
+        var raw=window.localStorage.getItem(CFG.cacheKey);
+        var saved=raw?JSON.parse(raw):null;
+        if(saved&&saved.events&&Date.now()-saved.time<CFG.cacheMs){
+            return hydrateEvents(saved.events);
+        }
+    } catch(error){
     }
-    times=eventTimeParts(eventItem);
-    if(!times){
-        return new Date(
-            eventItem.date.year,
-            monthNumber(eventItem.date.month)-1,
-            eventItem.date.day,
-            23,
-            59,
-            59,
-            999
+    return [];
+}
+
+function writeCache(events){
+    try{
+        window.localStorage.setItem(
+            CFG.cacheKey,
+            JSON.stringify({
+                time:Date.now(),
+                events:serializeEvents(events)
+            })
         );
+    } catch(error){
     }
-    start=new Date(
-        eventItem.date.year,
-        monthNumber(eventItem.date.month)-1,
-        eventItem.date.day,
-        times.start.hour,
-        times.start.minute,
-        0,
-        0
-    );
-    end=new Date(
-        eventItem.date.year,
-        monthNumber(eventItem.date.month)-1,
-        eventItem.date.day,
-        times.end.hour,
-        times.end.minute,
-        0,
-        0
-    );
-    if(end.getTime()<=start.getTime()){
-        end.setDate(end.getDate()+1);
-    }
-    return end;
 }
 
-function eventIsUpcoming(eventItem,referenceTime){
-    var end=eventEndDateObject(eventItem);
-    if(!end){
-        return true;
+function requestSource(){
+    var url=CFG.sourceUrl+(CFG.sourceUrl.indexOf("?")>-1?"&":"?")+"cfle_page_events="+Date.now();
+    if(window.fetch){
+        return window.fetch(url,{
+            credentials:"same-origin",
+            cache:"no-store",
+            headers:{
+                "Cache-Control":"no-cache, no-store, must-revalidate",
+                "Pragma":"no-cache"
+            }
+        }).then(function(response){
+            if(!response.ok){
+                throw new Error(String(response.status));
+            }
+            return response.text();
+        });
     }
-    return end.getTime()>=(referenceTime||new Date()).getTime();
+    return new Promise(function(resolve,reject){
+        var request=new XMLHttpRequest();
+        request.open("GET",url,true);
+        request.onreadystatechange=function(){
+            if(request.readyState!==4){
+                return;
+            }
+            if(request.status>=200&&request.status<300){
+                resolve(request.responseText);
+            } else {
+                reject(new Error(String(request.status)));
+            }
+        };
+        request.send(null);
+    });
 }
 
-function eventDateKey(eventItem){
-    if(!eventItem.date){
-        return "undated";
-    }
-    return eventItem.date.year+"-"+
-        pad(monthNumber(eventItem.date.month))+"-"+
-        pad(eventItem.date.day);
+function parseSourceHtml(html){
+    var doc=new DOMParser().parseFromString(html,"text/html");
+    return parseIndexEvents(doc);
 }
 
-function eventKey(eventItem){
-    return slug(eventItem.title)+"--"+
-        eventDateKey(eventItem)+"--"+
-        slug(eventItem.time||"time");
+function now(){
+    return new Date();
 }
 
-function generatedEventUrl(eventItem){
-    return CFG.pageUrl+"#event="+encodeURIComponent(eventKey(eventItem));
+function isUpcoming(eventItem){
+    return eventItem.end.getTime()>=now().getTime();
 }
 
-function hashValue(name){
-    var hash=String(window.location.hash||"").replace(/^#/,"").split("&");
-    var index;
-    var parts;
-    for(index=0;index<hash.length;index++){
-        parts=hash[index].split("=");
-        if(decodeURIComponent(parts[0]||"")===name){
-            return decodeURIComponent((parts.slice(1).join("=")||"").replace(/\+/g," "));
-        }
-    }
-    return "";
+function isPast(eventItem){
+    return eventItem.end.getTime()<now().getTime();
 }
 
-function queryValue(name){
-    var query=String(window.location.search||"").replace(/^\?/,"").split("&");
-    var index;
-    var parts;
-    for(index=0;index<query.length;index++){
-        parts=query[index].split("=");
-        if(decodeURIComponent(parts[0]||"")===name){
-            return decodeURIComponent((parts.slice(1).join("=")||"").replace(/\+/g," "));
-        }
-    }
-    return "";
+function activeEvents(){
+    return state.events.filter(function(eventItem){
+        return eventItem.upcoming&&!eventItem.standalone&&isUpcoming(eventItem);
+    });
 }
 
-function requestedEventKey(){
-    return hashValue("event")||queryValue("event");
+function pastEvents(){
+    return state.events.filter(function(eventItem){
+        return eventItem.upcoming&&!eventItem.standalone&&isPast(eventItem);
+    }).sort(function(first,second){
+        return second.start.getTime()-first.start.getTime();
+    });
 }
 
-function freshFeedUrl(){
-    return CFG.feedUrl+
-        (CFG.feedUrl.indexOf("?")>-1?"&":"?")+
-        "cfle_refresh="+new Date().getTime();
-}
-
-function rangeMatches(eventItem){
-    var now=new Date();
-    var date=eventDateObject(eventItem);
-    var start;
-    var end;
-    if(!date){
-        return true;
-    }
-    if(state.range==="thisweek"){
-        start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-        end=new Date(start.getTime());
-        end.setDate(start.getDate()+(6-start.getDay()+7)%7+1);
-        end.setHours(0,0,0,0);
-        return date>=start&&date<end;
-    }
-    if(state.range==="thismonth"){
-        start=new Date(now.getFullYear(),now.getMonth(),1);
-        end=new Date(now.getFullYear(),now.getMonth()+1,1);
-        return date>=start&&date<end;
-    }
-    return true;
-}
-
-function cadenceMatches(eventItem){
-    if(state.cadence==="recurring"){
-        return !!eventItem.recurring;
-    }
-    if(state.cadence==="onetime"){
-        return !eventItem.recurring;
-    }
-    return true;
+function isAppleDevice(){
+    return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent||"");
 }
 
 function mapsUrl(location){
-    var query=encodeURIComponent(
-        (location.name?location.name+" ":"")+
-        (location.address||location.text||"")
-    );
+    var text=location&&location.text?location.text:"";
+    var encoded=encodeURIComponent(text);
     if(/Android/i.test(navigator.userAgent||"")){
-        return "geo:0,0?q="+query;
+        return "geo:0,0?q="+encoded;
     }
     if(isAppleDevice()){
-        return "https://maps.apple.com/?q="+query;
+        return "https://maps.apple.com/?q="+encoded;
     }
-    return "https://www.google.com/maps/search/?api=1&query="+query;
+    return "https://www.google.com/maps/search/?api=1&query="+encoded;
 }
 
-function calendarStamp(eventItem,clock){
-    return eventItem.date.year+
-        pad(monthNumber(eventItem.date.month))+
-        pad(eventItem.date.day)+"T"+
-        pad(clock.hour)+
-        pad(clock.minute)+"00";
-}
-
-function eventInformationUrl(eventItem){
-    return eventItem.detailsUrl||generatedEventUrl(eventItem);
+function calendarStamp(date){
+    return date.getFullYear()+
+        pad(date.getMonth()+1)+
+        pad(date.getDate())+"T"+
+        pad(date.getHours())+
+        pad(date.getMinutes())+"00";
 }
 
 function googleCalendarUrl(eventItem){
-    var times=eventTimeParts(eventItem);
-    var description=eventItem.description||"";
-    var dates;
-    if(!times||!eventItem.date){
-        return "#";
-    }
-    dates=calendarStamp(eventItem,times.start)+"/"+
-        calendarStamp(eventItem,times.end);
-    description+=(description?"\n\n":"")+
-        "More information: "+eventInformationUrl(eventItem);
-    return "https://calendar.google.com/calendar/render"+
-        "?action=TEMPLATE"+
+    return "https://calendar.google.com/calendar/render?action=TEMPLATE"+
         "&text="+encodeURIComponent(eventItem.title)+
-        "&dates="+encodeURIComponent(dates)+
-        "&ctz="+encodeURIComponent("America/New_York")+
+        "&dates="+encodeURIComponent(calendarStamp(eventItem.start)+"/"+calendarStamp(eventItem.end))+
         "&location="+encodeURIComponent(eventItem.location.text||"")+
-        "&details="+encodeURIComponent(description);
+        "&details="+encodeURIComponent("More information: "+eventItem.url);
 }
 
 function escapeIcs(value){
@@ -386,31 +749,23 @@ function escapeIcs(value){
 }
 
 function icsText(eventItem){
-    var times=eventTimeParts(eventItem);
-    var description=eventItem.description||"";
-    if(!times||!eventItem.date){
-        return "";
-    }
-    description+=(description?"\n\n":"")+
-        "More information: "+eventInformationUrl(eventItem);
     return "BEGIN:VCALENDAR\r\n"+
         "VERSION:2.0\r\n"+
-        "PRODID:-//Chabad of Fort Lee//Upcoming at Chabad//EN\r\n"+
+        "PRODID:-//Chabad of Fort Lee//Page Events//EN\r\n"+
         "BEGIN:VEVENT\r\n"+
-        "UID:"+eventKey(eventItem)+"@chabadfortlee.com\r\n"+
-        "DTSTART;TZID=America/New_York:"+calendarStamp(eventItem,times.start)+"\r\n"+
-        "DTEND;TZID=America/New_York:"+calendarStamp(eventItem,times.end)+"\r\n"+
+        "UID:"+escapeIcs(eventItem.id)+"@chabadfortlee.com\r\n"+
+        "DTSTART:"+calendarStamp(eventItem.start)+"\r\n"+
+        "DTEND:"+calendarStamp(eventItem.end)+"\r\n"+
         "SUMMARY:"+escapeIcs(eventItem.title)+"\r\n"+
         "LOCATION:"+escapeIcs(eventItem.location.text||"")+"\r\n"+
-        "DESCRIPTION:"+escapeIcs(description)+"\r\n"+
+        "DESCRIPTION:"+escapeIcs("More information: "+eventItem.url)+"\r\n"+
+        "URL:"+escapeIcs(eventItem.url)+"\r\n"+
         "END:VEVENT\r\n"+
         "END:VCALENDAR";
 }
 
 function downloadIcs(eventItem){
-    var blob=new Blob([icsText(eventItem)],{
-        type:"text/calendar;charset=utf-8"
-    });
+    var blob=new Blob([icsText(eventItem)],{type:"text/calendar;charset=utf-8"});
     var url=URL.createObjectURL(blob);
     var anchor=d.createElement("a");
     anchor.href=url;
@@ -421,553 +776,6 @@ function downloadIcs(eventItem){
     window.setTimeout(function(){
         URL.revokeObjectURL(url);
     },1500);
-}
-
-function readCache(){
-    try{
-        var raw=window.localStorage.getItem(CFG.cacheKey);
-        var stored=raw?JSON.parse(raw):null;
-        if(stored&&stored.html&&new Date().getTime()-stored.time<CFG.cacheMs){
-            return stored.html;
-        }
-    } catch(error){
-    }
-    return "";
-}
-
-function writeCache(html){
-    try{
-        window.localStorage.setItem(CFG.cacheKey,JSON.stringify({
-            time:new Date().getTime(),
-            html:html
-        }));
-    } catch(error){
-    }
-}
-
-function isDedicatedPageUrl(url){
-    var anchor;
-    var path;
-    var hostname;
-    if(!url){
-        return false;
-    }
-    anchor=d.createElement("a");
-    anchor.href=url;
-    path=String(anchor.pathname||"").toLowerCase();
-    hostname=String(anchor.hostname||"").toLowerCase();
-    if(!path){
-        return false;
-    }
-    if(
-        path.indexOf("/templates/events.htm")>-1||
-        path.indexOf("/calendar/view/")>-1||
-        path.indexOf("/templates/articlecco_cdo/aid/7437974/")>-1
-    ){
-        return false;
-    }
-    if(
-        hostname.indexOf("maps.google.")>-1||
-        hostname.indexOf("calendar.google.")>-1
-    ){
-        return false;
-    }
-    return true;
-}
-
-function titleSimilarity(first,second){
-    var firstKey=titleKey(first);
-    var secondKey=titleKey(second);
-    var firstTokens;
-    var secondTokens;
-    var intersection=0;
-    var index;
-    var ratio;
-    if(!firstKey||!secondKey){
-        return 0;
-    }
-    if(firstKey===secondKey){
-        return 100;
-    }
-    if(
-        firstKey.indexOf(secondKey)>-1||
-        secondKey.indexOf(firstKey)>-1
-    ){
-        return 82+
-            Math.round(
-                Math.min(firstKey.length,secondKey.length)/
-                Math.max(firstKey.length,secondKey.length)*12
-            );
-    }
-    firstTokens=firstKey.split(" ");
-    secondTokens=secondKey.split(" ");
-    for(index=0;index<firstTokens.length;index++){
-        if(secondTokens.indexOf(firstTokens[index])>-1){
-            intersection++;
-        }
-    }
-    ratio=intersection/Math.max(firstTokens.length,secondTokens.length);
-    return Math.round(ratio*78);
-}
-
-function findMatchingSitePage(title){
-    var links=qsa(
-        ".site-nav-wrapper a[href],"+
-        "#header a[href],"+
-        ".main_menu_container a[href]"
-    );
-    var bestUrl="";
-    var bestScore=0;
-    var index;
-    var link;
-    var url;
-    var score;
-    for(index=0;index<links.length;index++){
-        link=links[index];
-        if((" "+link.className+" ").indexOf(" cfle-auto-event-link ")>-1){
-            continue;
-        }
-        url=absoluteUrl(link.getAttribute("href"));
-        if(!isDedicatedPageUrl(url)){
-            continue;
-        }
-        score=titleSimilarity(
-            title,
-            link.textContent||link.innerText||""
-        );
-        if(/articlecco_cdo/i.test(url)){
-            score+=3;
-        }
-        if(score>bestScore){
-            bestScore=score;
-            bestUrl=url;
-        }
-    }
-    return bestScore>=82?bestUrl:"";
-}
-
-function resolveDetailsUrl(eventItem){
-    var matched;
-    if(isDedicatedPageUrl(eventItem.nativeDetailsUrl)){
-        return eventItem.nativeDetailsUrl;
-    }
-    matched=findMatchingSitePage(eventItem.title);
-    if(matched){
-        return matched;
-    }
-    return generatedEventUrl(eventItem);
-}
-
-function isGeneratedDetailsUrl(url){
-    var anchor=d.createElement("a");
-    if(!url){
-        return false;
-    }
-    anchor.href=url;
-    return String(anchor.pathname||"").toLowerCase()
-        .indexOf("/templates/articlecco_cdo/aid/7437974/")>-1&&
-        String(anchor.hash||"").indexOf("#event=")===0;
-}
-
-function extractMarkers(title){
-    var markers=[];
-    var allowed={
-        "s":true,
-        "spotlight":true,
-        "featured":true,
-        "feature":true,
-        "holiday":true,
-        "holidays":true,
-        "youth":true,
-        "teen":true,
-        "kids":true,
-        "children":true,
-        "family":true,
-        "learning":true,
-        "class":true,
-        "classes":true,
-        "learning class":true,
-        "study":true,
-        "recurring":true,
-        "weekly":true,
-        "ongoing":true,
-        "monthly":true,
-        "one-time":true,
-        "onetime":true,
-        "special":true
-    };
-    var clean=String(title||"").replace(
-        /\[([^\]]+)\]|\(([^)]+)\)/g,
-        function(fullMarker,squareMarker,roundMarker){
-            var marker=normalized(squareMarker||roundMarker||"");
-            if(allowed[marker]){
-                markers.push(marker);
-                return "";
-            }
-            return fullMarker;
-        }
-    );
-    return {
-        markers:markers,
-        clean:cleanText(clean)
-    };
-}
-
-function nodeTextWithBreaks(node){
-    var clone=node.cloneNode(true);
-    var breaks=qsa("br",clone);
-    var blocks=qsa("p,div,li",clone);
-    var index;
-    var text;
-    for(index=0;index<breaks.length;index++){
-        if(breaks[index].parentNode){
-            breaks[index].parentNode.replaceChild(
-                d.createTextNode("\n"),
-                breaks[index]
-            );
-        }
-    }
-    for(index=0;index<blocks.length;index++){
-        blocks[index].appendChild(d.createTextNode("\n"));
-    }
-    text=String(clone.textContent||clone.innerText||"")
-        .replace(/\u00a0/g," ")
-        .replace(/[ \t]+\n/g,"\n")
-        .replace(/\n[ \t]+/g,"\n")
-        .replace(/\n{3,}/g,"\n\n")
-        .replace(/^\s+|\s+$/g,"");
-    return text;
-}
-
-function parseLocation(item){
-    var link=qs(
-        '.event_info a[href*="maps.google.com"],'+
-        '.event_info a[href*="google.com/maps"]',
-        item
-    );
-    var clone;
-    var breaks;
-    var parts;
-    var value;
-    if(!link){
-        return {
-            text:"",
-            name:"",
-            address:"",
-            url:""
-        };
-    }
-    clone=link.cloneNode(true);
-    breaks=clone.getElementsByTagName("br");
-    while(breaks.length){
-        breaks[0].parentNode.replaceChild(
-            d.createTextNode(" | "),
-            breaks[0]
-        );
-    }
-    value=cleanText(clone.textContent||clone.innerText);
-    parts=value.split("|");
-    return {
-        text:value.replace(/\s*\|\s*/g," — "),
-        name:cleanText(parts[0]),
-        address:cleanText(parts.slice(1).join(" ")),
-        url:absoluteUrl(link.getAttribute("href"))
-    };
-}
-
-function parseDescription(item){
-    var infos=qsa(".event_wrapper .event_info",item);
-    var index;
-    var info;
-    var text;
-    var candidates=[];
-    for(index=0;index<infos.length;index++){
-        info=infos[index];
-        if(qs(
-            'a[href*="maps.google.com"],'+
-            'a[href*="google.com/maps"]',
-            info
-        )){
-            continue;
-        }
-        if((" "+info.className+" ").indexOf(" more_info ")>-1){
-            continue;
-        }
-        text=nodeTextWithBreaks(info);
-        text=text
-            .replace(/^where:\s*/i,"")
-            .replace(/^more information\s*»?\s*/i,"")
-            .replace(/^off\s*$/i,"");
-        if(text){
-            candidates.push(text);
-        }
-    }
-    return candidates.join("\n\n")
-        .replace(/\n{3,}/g,"\n\n")
-        .replace(/^\s+|\s+$/g,"");
-}
-
-function findEventTime(item){
-    var nodes=qsa(".event_options.list_info div",item);
-    var index;
-    var text;
-    for(index=nodes.length-1;index>=0;index--){
-        text=cleanText(nodes[index].textContent||nodes[index].innerText);
-        if(/\d{1,2}:\d{2}\s*(am|pm)/i.test(text)){
-            return text;
-        }
-    }
-    return "";
-}
-
-function parseEvent(item){
-    var parent=item.parentNode;
-    var dateNode=parent?qs(".date_stamp .date",parent):null;
-    var date=parseDateLabel(dateNode?dateNode.textContent:"");
-    var titleNode=qs(".event_wrapper .event_name",item);
-    var titleAnchor;
-    var rawTitle=titleNode?cleanText(titleNode.textContent||titleNode.innerText):"";
-    var titleParts=extractMarkers(rawTitle);
-    var details=qs(".more_info a",item);
-    if(!details&&titleNode){
-        titleAnchor=String(titleNode.tagName||"").toLowerCase()==="a"?
-            titleNode:
-            qs("a",titleNode);
-        details=titleAnchor;
-    }
-    return {
-        id:"",
-        rawTitle:rawTitle,
-        title:titleParts.clean||rawTitle,
-        markers:titleParts.markers,
-        date:date,
-        time:findEventTime(item),
-        description:parseDescription(item),
-        location:parseLocation(item),
-        nativeDetailsUrl:details?absoluteUrl(details.getAttribute("href")):"",
-        detailsUrl:"",
-        categories:[],
-        featured:false,
-        spotlight:false,
-        recurring:false
-    };
-}
-
-function addCategory(eventItem,key){
-    if(eventItem.categories.indexOf(key)===-1){
-        eventItem.categories.push(key);
-    }
-}
-
-function inferCategories(eventItem){
-    var title=normalized(eventItem.title);
-    var markers=eventItem.markers.map(normalized);
-    function hasMarker(options){
-        return options.some(function(option){
-            return markers.indexOf(option)>-1;
-        });
-    }
-    if(hasMarker(["s","spotlight"])){
-        eventItem.spotlight=true;
-    }
-    if(hasMarker(["featured","feature","spotlight","s"])){
-        eventItem.featured=true;
-    }
-    if(hasMarker(["holiday","holidays"])){
-        addCategory(eventItem,"holidays");
-    }
-    if(hasMarker(["youth","teen","kids","children","family"])){
-        addCategory(eventItem,"youth");
-    }
-    if(hasMarker(["learning","class","classes","learning class","study"])){
-        addCategory(eventItem,"learning");
-    }
-    if(hasMarker(["recurring","weekly","ongoing","monthly"])){
-        eventItem.recurring=true;
-    }
-    if(hasMarker(["one-time","onetime","special"])){
-        eventItem.recurring=false;
-    }
-    if(/rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tu b.?shvat|tisha b.?av|selichot|high holiday/.test(title)){
-        addCategory(eventItem,"holidays");
-    }
-    if(/youth|teen|cteen|child|children|kid|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/.test(title)){
-        addCategory(eventItem,"youth");
-    }
-    if(/class|learning|learn|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox.*learn|shiur/.test(title)){
-        addCategory(eventItem,"learning");
-    }
-    if(/featured|spotlight/.test(title)){
-        eventItem.featured=true;
-    }
-    if(/weekly|every monday|every tuesday|every wednesday|every thursday|every friday|every saturday|every sunday|ongoing|monthly/.test(title)){
-        eventItem.recurring=true;
-    }
-}
-
-function finalizeEvents(events){
-    var counts={};
-    var index;
-    var key;
-    for(index=0;index<events.length;index++){
-        key=normalized(events[index].title);
-        counts[key]=(counts[key]||0)+1;
-    }
-    for(index=0;index<events.length;index++){
-        inferCategories(events[index]);
-        key=normalized(events[index].title);
-        if(
-            counts[key]>1&&
-            !events[index].markers.join(" ").match(/one-time|onetime|special/i)
-        ){
-            events[index].recurring=true;
-        }
-        if(events[index].spotlight){
-            events[index].featured=true;
-        }
-        events[index].id=eventKey(events[index]);
-        events[index].detailsUrl=resolveDetailsUrl(events[index]);
-        events[index].generatedDetails=isGeneratedDetailsUrl(events[index].detailsUrl);
-    }
-    events.sort(function(first,second){
-        var firstDate=eventDateObject(first);
-        var secondDate=eventDateObject(second);
-        return (firstDate?firstDate.getTime():0)-
-            (secondDate?secondDate.getTime():0);
-    });
-    return events;
-}
-
-function parseFeed(html){
-    var parsed=new DOMParser().parseFromString(html,"text/html");
-    var items=qsa(".category_item",parsed);
-    var events=[];
-    var index;
-    var eventItem;
-    for(index=0;index<items.length;index++){
-        eventItem=parseEvent(items[index]);
-        if(
-            eventItem&&
-            eventItem.title&&
-            eventItem.date&&
-            eventIsUpcoming(eventItem)
-        ){
-            events.push(eventItem);
-        }
-    }
-    return finalizeEvents(events);
-}
-
-function labelForFilter(key){
-    return {
-        all:"All",
-        featured:"Featured",
-        holidays:"Holidays",
-        youth:"Youth",
-        learning:"Classes & Learning"
-    }[key]||"All";
-}
-
-function visibleMainEvents(){
-    var query=normalized(state.search);
-    return state.events.filter(function(eventItem){
-        var haystack;
-        var categoryMatches;
-        if(eventItem.spotlight){
-            return false;
-        }
-        categoryMatches=
-            state.active==="all"||
-            (state.active==="featured"&&eventItem.featured)||
-            (state.active==="holidays"&&eventItem.categories.indexOf("holidays")>-1)||
-            (state.active==="youth"&&eventItem.categories.indexOf("youth")>-1)||
-            (state.active==="learning"&&eventItem.categories.indexOf("learning")>-1);
-        if(!categoryMatches||!rangeMatches(eventItem)||!cadenceMatches(eventItem)){
-            return false;
-        }
-        if(!query){
-            return true;
-        }
-        haystack=normalized([
-            eventItem.title,
-            eventItem.description,
-            eventItem.location.text,
-            eventItem.categories.join(" "),
-            eventItem.time,
-            eventItem.date?eventItem.date.label:""
-        ].join(" "));
-        return haystack.indexOf(query)>-1;
-    });
-}
-
-function visibleSpotlights(){
-    var seen={};
-    var now=new Date();
-    var visible=[];
-    state.events.forEach(function(eventItem){
-        var date;
-        var key;
-        if(!eventItem.spotlight){
-            return;
-        }
-        date=eventEndDateObject(eventItem);
-        if(date&&date.getTime()<now.getTime()){
-            return;
-        }
-        if(eventItem.recurring){
-            key=normalized(eventItem.title);
-            if(seen[key]){
-                return;
-            }
-            seen[key]=true;
-        }
-        visible.push(eventItem);
-    });
-    return visible;
-}
-
-function buildTag(key,text){
-    var className="cfle-tag";
-    if(key==="featured"){
-        className+=" cfle-tag--featured";
-    }
-    if(key==="holidays"){
-        className+=" cfle-tag--holiday";
-    }
-    if(key==="youth"){
-        className+=" cfle-tag--youth";
-    }
-    if(key==="learning"){
-        className+=" cfle-tag--learning";
-    }
-    if(key==="recurring"){
-        className+=" cfle-tag--recurring";
-    }
-    if(key==="onetime"){
-        className+=" cfle-tag--onetime";
-    }
-    return '<span class="'+className+'">'+escapeHtml(text)+'</span>';
-}
-
-function eventTags(eventItem,forSpotlight){
-    var tags=[];
-    if(forSpotlight||state.active==="featured"||eventItem.featured){
-        tags.push(buildTag("featured","Featured"));
-    }
-    if(eventItem.categories.indexOf("holidays")>-1){
-        tags.push(buildTag("holidays","Holiday"));
-    }
-    if(eventItem.categories.indexOf("youth")>-1){
-        tags.push(buildTag("youth","Youth"));
-    }
-    if(eventItem.categories.indexOf("learning")>-1){
-        tags.push(buildTag("learning","Classes & Learning"));
-    }
-    tags.push(buildTag(
-        eventItem.recurring?"recurring":"onetime",
-        eventItem.recurring?"Recurring":"One-Time"
-    ));
-    return tags.join("");
 }
 
 function clockIcon(){
@@ -1012,41 +820,38 @@ function calendarIcon(){
         '</svg></span>';
 }
 
-function eventTitleHtml(eventItem){
-    var generatedClass=eventItem.generatedDetails?" cfle-generated-detail-link":"";
-    return '<a class="cfle-title'+generatedClass+'" href="'+
-        escapeHtml(eventItem.detailsUrl)+'" data-event-id="'+
-        escapeHtml(eventItem.id)+'" aria-label="View details for '+
-        escapeHtml(eventItem.title)+'">'+
-        escapeHtml(eventItem.title)+'</a>';
-}
-
-function calendarButtonsHtml(eventItem){
-    var googleButton=
-        '<button type="button" class="cfle-action-btn cfle-calendar-google" data-cal="google" data-id="'+escapeHtml(eventItem.id)+'">'+
-        googleIcon()+'<span>Add to Calendar</span></button>';
-    var secondaryButton;
-    if(isAppleDevice()){
-        secondaryButton=
-            '<button type="button" class="cfle-action-btn cfle-calendar-apple" data-cal="ics" data-id="'+escapeHtml(eventItem.id)+'">'+
-            appleIcon()+'<span>Add to Calendar</span></button>';
-        return secondaryButton+googleButton;
+function buildTag(key,text){
+    var className="cfle-tag";
+    if(key==="featured"){
+        className+=" cfle-tag--featured";
     }
-    secondaryButton=
-        '<button type="button" class="cfle-action-btn cfle-calendar-other" data-cal="ics" data-id="'+escapeHtml(eventItem.id)+'">'+
-        calendarIcon()+'<span>Other Calendar</span></button>';
-    return googleButton+secondaryButton;
+    if(key==="holidays"){
+        className+=" cfle-tag--holiday";
+    }
+    if(key==="youth"){
+        className+=" cfle-tag--youth";
+    }
+    if(key==="learning"){
+        className+=" cfle-tag--learning";
+    }
+    return '<span class="'+className+'">'+escapeHtml(text)+'</span>';
 }
 
-function actionButtonsHtml(eventItem){
-    var generatedClass=eventItem.generatedDetails?" cfle-generated-detail-link":"";
-    return '<div class="cfle-actions">'+
-        calendarButtonsHtml(eventItem)+
-        '<a class="cfle-detail-btn'+generatedClass+'" href="'+
-        escapeHtml(eventItem.detailsUrl)+'" data-event-id="'+
-        escapeHtml(eventItem.id)+'" aria-label="View details for '+
-        escapeHtml(eventItem.title)+'">View Details</a>'+
-        '</div>';
+function eventTags(eventItem,spotlight){
+    var output=[];
+    if(spotlight||eventItem.featured){
+        output.push(buildTag("featured","Featured"));
+    }
+    if(eventItem.categories.indexOf("holidays")>-1){
+        output.push(buildTag("holidays","Holiday"));
+    }
+    if(eventItem.categories.indexOf("youth")>-1){
+        output.push(buildTag("youth","Youth"));
+    }
+    if(eventItem.categories.indexOf("learning")>-1){
+        output.push(buildTag("learning","Classes & Learning"));
+    }
+    return output.join("");
 }
 
 function renderMeta(eventItem){
@@ -1074,67 +879,110 @@ function renderMeta(eventItem){
         '</div>';
 }
 
-function cardHtml(eventItem,spotlight){
-
-    var date=eventItem.date||{};
-
-    var className=
-        "cfle-card"+
-        (
-            spotlight?
-            " cfle-card--spotlight":
-            ""
-        )+
-        " no-desc";
-
-    return '<article class="'+className+'">'+
-
-        '<div class="cfle-date">'+
-
-            '<span class="cfle-date-month">'+
-                escapeHtml(
-                    (date.month||"").slice(0,3)
-                )+
-            '</span>'+
-
-            '<span class="cfle-date-day">'+
-                escapeHtml(date.day||"")+
-            '</span>'+
-
-            '<span class="cfle-date-weekday">'+
-                escapeHtml(
-                    (date.weekday||"").slice(0,3)
-                )+
-            '</span>'+
-
-        '</div>'+
-
-        '<div class="cfle-body">'+
-
-            eventTitleHtml(eventItem)+
-
-            '<div class="cfle-tags">'+
-                eventTags(
-                    eventItem,
-                    spotlight
-                )+
-            '</div>'+
-
-            renderMeta(eventItem)+
-
-        '</div>'+
-
-        actionButtonsHtml(eventItem)+
-
-    '</article>';
+function calendarButtonsHtml(eventItem){
+    var googleButton=
+        '<button type="button" class="cfle-action-btn cfle-calendar-google" data-cal="google" data-id="'+escapeHtml(eventItem.id)+'">'+
+        googleIcon()+'<span>Add to Calendar</span></button>';
+    var secondaryButton;
+    if(isAppleDevice()){
+        secondaryButton=
+            '<button type="button" class="cfle-action-btn cfle-calendar-apple" data-cal="ics" data-id="'+escapeHtml(eventItem.id)+'">'+
+            appleIcon()+'<span>Add to Calendar</span></button>';
+        return '<div class="cfle-calendar-buttons">'+secondaryButton+googleButton+'</div>';
+    }
+    secondaryButton=
+        '<button type="button" class="cfle-action-btn cfle-calendar-other" data-cal="ics" data-id="'+escapeHtml(eventItem.id)+'">'+
+        calendarIcon()+'<span>Other Calendar</span></button>';
+    return '<div class="cfle-calendar-buttons">'+googleButton+secondaryButton+'</div>';
 }
-    
-function emptyHtml(){
-    return '<div class="cfle-empty">'+
-        '<strong>Nothing here just yet.</strong>'+
-        '<span>More programs are on the way&mdash;try another category or check back soon.</span>'+
-        '<a href="#" class="cfle-reset-link" id="cfle-reset-link">View All</a>'+
-        '</div>';
+
+function cardHtml(eventItem,spotlight,past){
+    var date=eventItem.date||{};
+    var actions=past?
+        '<div class="cfle-actions"><a class="cfle-detail-btn" href="'+escapeHtml(eventItem.url)+'">View Event</a></div>':
+        '<div class="cfle-actions">'+calendarButtonsHtml(eventItem)+
+        '<a class="cfle-detail-btn" href="'+escapeHtml(eventItem.url)+'">View Details</a></div>';
+
+    return '<article class="cfle-card'+(spotlight?' cfle-card--spotlight':'')+' no-desc">'+
+        '<div class="cfle-date">'+
+        '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
+        '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
+        '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
+        '</div>'+
+        '<div class="cfle-body">'+
+        '<a class="cfle-title" href="'+escapeHtml(eventItem.url)+'">'+escapeHtml(eventItem.title)+'</a>'+
+        '<div class="cfle-tags">'+eventTags(eventItem,spotlight)+'</div>'+
+        renderMeta(eventItem)+
+        '</div>'+actions+'</article>';
+}
+
+function labelForFilter(key){
+    return {
+        all:"All",
+        featured:"Featured",
+        holidays:"Holidays",
+        youth:"Youth",
+        learning:"Classes & Learning"
+    }[key]||"All";
+}
+
+function rangeMatches(eventItem){
+    var reference=now();
+    var start;
+    var end;
+    if(state.range==="thisweek"){
+        start=new Date(reference.getFullYear(),reference.getMonth(),reference.getDate());
+        end=new Date(start.getTime());
+        end.setDate(start.getDate()+7);
+        return eventItem.start>=start&&eventItem.start<end;
+    }
+    if(state.range==="thismonth"){
+        start=new Date(reference.getFullYear(),reference.getMonth(),1);
+        end=new Date(reference.getFullYear(),reference.getMonth()+1,1);
+        return eventItem.start>=start&&eventItem.start<end;
+    }
+    return true;
+}
+
+function visibleSpotlights(){
+    return activeEvents().filter(function(eventItem){
+        return eventItem.featured;
+    });
+}
+
+function visibleMainEvents(){
+    var query=normalized(state.search);
+    return activeEvents().filter(function(eventItem){
+        var categoryMatch;
+        var haystack;
+        if(eventItem.featured){
+            return false;
+        }
+        categoryMatch=
+            state.active==="all"||
+            (state.active==="featured"&&eventItem.featured)||
+            eventItem.categories.indexOf(state.active)>-1;
+        if(!categoryMatch||!rangeMatches(eventItem)){
+            return false;
+        }
+        if(state.cadence==="onetime"&&eventItem.recurring){
+            return false;
+        }
+        if(state.cadence==="recurring"&&!eventItem.recurring){
+            return false;
+        }
+        if(!query){
+            return true;
+        }
+        haystack=normalized([
+            eventItem.title,
+            eventItem.time,
+            eventItem.location.text,
+            eventItem.categories.join(" "),
+            eventItem.date.label
+        ].join(" "));
+        return haystack.indexOf(query)>-1;
+    });
 }
 
 function ensureRenderContainers(){
@@ -1142,11 +990,7 @@ function ensureRenderContainers(){
     var spotlight=qs("#cfle-spotlight-section");
     var main=qs("#cfle-main-section");
     if(!mount){
-        return {
-            mount:null,
-            spotlight:null,
-            main:null
-        };
+        return null;
     }
     if(!spotlight){
         spotlight=d.createElement("div");
@@ -1160,113 +1004,208 @@ function ensureRenderContainers(){
         main.className="cfle-section";
         mount.appendChild(main);
     }
-    return {
-        mount:mount,
-        spotlight:spotlight,
-        main:main
-    };
+    return {mount:mount,spotlight:spotlight,main:main};
 }
 
-function renderList(){
+function renderUpcoming(){
     var containers=ensureRenderContainers();
-    var spotlightEvents=visibleSpotlights();
-    var mainEvents=visibleMainEvents();
-    var count=qs("#cfle-count");
-    var heading=labelForFilter(state.active);
-    var html="";
-    var index;
-    if(!containers.mount||!containers.spotlight||!containers.main||!count){
+    var spotlightEvents;
+    var mainEvents;
+    var count;
+    var html;
+    if(!containers){
         return;
     }
-    count.innerHTML='<strong>'+mainEvents.length+'</strong> upcoming programs';
+    spotlightEvents=visibleSpotlights();
+    mainEvents=visibleMainEvents();
+    count=qs("#cfle-count");
+    if(count){
+        count.innerHTML='<strong>'+(spotlightEvents.length+mainEvents.length)+'</strong> upcoming programs';
+    }
     if(spotlightEvents.length){
-        html='<h2 class="cfle-section-title"><span class="cfle-star">&#9733;</span> Spotlight</h2>'+
-            '<div class="cfle-spot-grid count-'+
-            (spotlightEvents.length>4?4:spotlightEvents.length)+'">';
-        for(index=0;index<spotlightEvents.length;index++){
-            html+=cardHtml(spotlightEvents[index],true);
-        }
-        html+='</div>';
+        html='<h2 class="cfle-section-title"><span class="cfle-star">&#9733;</span> Featured</h2>'+
+            '<div class="cfle-spot-grid count-'+Math.min(spotlightEvents.length,4)+'">'+
+            spotlightEvents.map(function(eventItem){
+                return cardHtml(eventItem,true,false);
+            }).join("")+'</div>';
         containers.spotlight.innerHTML=html;
     } else {
         containers.spotlight.innerHTML="";
     }
-    html='<h2 class="cfle-section-title">'+
-        escapeHtml(heading)+
-        ' <small>now showing</small></h2>';
-    html+=mainEvents.length?
-        '<div class="cfle-list">'+
-        mainEvents.map(function(eventItem){
-            return cardHtml(eventItem,false);
-        }).join("")+
-        '</div>':
-        emptyHtml();
+    html='<h2 class="cfle-section-title">'+escapeHtml(labelForFilter(state.active))+' <small>now showing</small></h2>';
+    if(mainEvents.length){
+        html+='<div class="cfle-list">'+mainEvents.map(function(eventItem){
+            return cardHtml(eventItem,false,false);
+        }).join("")+'</div>';
+    } else {
+        html+='<div class="cfle-empty"><strong>No upcoming events are listed yet.</strong><span>Please check back soon.</span></div>';
+    }
     containers.main.innerHTML=html;
 }
 
-function detailMetaHtml(eventItem){
-    var date=eventItem.date||{};
-    var pieces=[];
-    if(date.label){
-        pieces.push('<strong>'+escapeHtml(date.label)+'</strong>');
+function renderPast(){
+    var mount=qs("#cfle-past-events");
+    var events=pastEvents();
+    if(!mount){
+        return;
     }
-    if(eventItem.time){
-        pieces.push(
-            '<span class="cfle-meta-item">'+clockIcon()+
-            '<span>'+escapeHtml(eventItem.time)+'</span></span>'
-        );
+    mount.className="cfle-past-events-wrap";
+    if(!events.length){
+        mount.innerHTML='<div class="cfle-empty"><strong>No past events are listed yet.</strong></div>';
+        return;
     }
-    if(eventItem.location&&eventItem.location.text){
-        pieces.push(
-            '<a class="cfle-event-detail-location cfle-meta-item cfle-location" href="'+
-            escapeHtml(mapsUrl(eventItem.location))+
-            '" target="_blank" rel="noopener noreferrer">'+
-            locationIcon()+
-            '<span class="cfle-nowrap">'+
-            escapeHtml(eventItem.location.text)+
-            '</span></a>'
-        );
-    }
-    return pieces.join("");
+    mount.innerHTML='<div class="cfle-list cfle-past-list">'+events.map(function(eventItem){
+        return cardHtml(eventItem,false,true);
+    }).join("")+'</div>';
 }
 
-function detailHtml(eventItem){
-    var date=eventItem.date||{};
-    var description=eventItem.description?
-        escapeHtml(eventItem.description).replace(/\n/g,"<br />"):
-        "Details will be posted soon.";
-    return '<article class="cfle-event-detail">'+
-        '<a class="cfle-event-detail-back" href="'+escapeHtml(CFG.pageUrl)+'">&larr; Back to Upcoming at Chabad</a>'+
-        '<div class="cfle-event-detail-card">'+
-        '<div class="cfle-event-detail-date">'+
-        '<span>'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
-        '<strong>'+escapeHtml(date.day||"")+'</strong>'+
-        '<small>'+escapeHtml(date.year||"")+'</small>'+
-        '</div>'+
-        '<div class="cfle-event-detail-main">'+
-        '<div class="cfle-tags">'+eventTags(eventItem,eventItem.spotlight)+'</div>'+
-        '<h1>'+escapeHtml(eventItem.title)+'</h1>'+
-        '<div class="cfle-event-detail-meta">'+detailMetaHtml(eventItem)+'</div>'+
-        '<div class="cfle-event-detail-description">'+description+'</div>'+
-        '<div class="cfle-actions cfle-event-detail-actions">'+
-        calendarButtonsHtml(eventItem)+
-        '</div>'+
-        '</div></div></article>';
+function findHomepageModule(){
+    var markerCandidates=qsa(".chabad_updates,.message_format,.bottom_padding,div,p,span");
+    var anchors=qsa("a");
+    var index;
+    var text;
+    var node;
+    var depth;
+
+    for(index=0;index<markerCandidates.length;index++){
+        text=normalized(markerCandidates[index].textContent||markerCandidates[index].innerText||"");
+        if(text!=="cfle_page_events"){
+            continue;
+        }
+        node=markerCandidates[index];
+        while(node&&node!==d.body){
+            if((" "+String(node.className||"")+" ").indexOf(" chabad_updates ")>-1){
+                return node;
+            }
+            node=node.parentNode;
+        }
+        return markerCandidates[index].parentNode||markerCandidates[index];
+    }
+
+    for(index=0;index<anchors.length;index++){
+        text=normalized(anchors[index].textContent||anchors[index].innerText||"");
+        if(text!=="view more upcoming events"&&text!=="view more"&&text!=="view all upcoming events"){
+            continue;
+        }
+        if(excludedArea(anchors[index])){
+            continue;
+        }
+        node=anchors[index];
+        depth=0;
+        while(node&&depth<7){
+            node=node.parentNode;
+            depth++;
+            if(!node||node===d.body){
+                break;
+            }
+            text=normalized(node.textContent||node.innerText||"");
+            if(text.indexOf("upcoming at chabad")>-1&&node.getElementsByTagName("a").length<=15){
+                return node;
+            }
+        }
+    }
+    return null;
 }
 
-function setControlsVisible(visible){
-    qsa(
-        ".cfle-toolbar,"+
-        ".cfle-intro,"+
-        ".cfle-filters,"+
-        ".cfle-top-filters,"+
-        ".cfle-more-panel"
-    ).forEach(function(element){
-        element.style.display=visible?"":"none";
+function renderHomepage(){
+    var module;
+    var events;
+    var html;
+    if(!d.body||String(d.body.className||"").indexOf("home")===-1){
+        return;
+    }
+    module=findHomepageModule();
+    if(!module){
+        return;
+    }
+    events=activeEvents().filter(function(eventItem){
+        return eventItem.homepage;
+    }).slice(0,CFG.homepageLimit);
+    html='<div class="cfle-home-events">'+
+        '<h5 class="cfle-home-events-title">Upcoming at Chabad</h5>';
+    if(events.length){
+        html+='<div class="cfle-home-events-list">'+events.map(function(eventItem){
+            return '<a class="cfle-home-event" href="'+escapeHtml(eventItem.url)+'">'+
+                '<span class="cfle-home-event-date">'+escapeHtml(eventItem.date.label+(eventItem.time?' &bull; '+eventItem.time:''))+'</span>'+
+                '<strong>'+escapeHtml(eventItem.title)+'</strong></a>';
+        }).join("")+'</div>';
+    } else {
+        html+='<p class="cfle-home-events-empty">More programs are coming soon.</p>';
+    }
+    html+='<a class="cfle-home-view-more" href="'+escapeHtml(CFG.upcomingUrl)+'">View More</a></div>';
+    module.innerHTML=html;
+    module.className+=(module.className?" ":"")+"cfle-home-events-module";
+}
+
+function hideExpiredDropdownLinks(){
+    var expired={};
+    var anchors;
+    var index;
+    var path;
+    var node;
+    state.events.forEach(function(eventItem){
+        if(isPast(eventItem)){
+            expired[canonicalUrl(eventItem.url)]=true;
+        }
+    });
+    anchors=qsa('.site-nav-wrapper a[href],#co_menu_container a[href],#header a[href]');
+    for(index=0;index<anchors.length;index++){
+        path=canonicalUrl(anchors[index].href);
+        if(!expired[path]){
+            continue;
+        }
+        node=anchors[index];
+        while(node&&node.parentNode&&node.parentNode!==d.body){
+            if(/co_menu_item|item|menu-item/i.test(String(node.className||""))){
+                break;
+            }
+            node=node.parentNode;
+        }
+        if(node&&node.style){
+            node.style.display="none";
+            node.setAttribute("data-cfle-expired-event","true");
+        } else {
+            anchors[index].style.display="none";
+        }
+    }
+}
+
+function hideNativeIndexSources(events){
+    var seen=[];
+    var hiddenRoots=[];
+    events.forEach(function(eventItem){
+        var container=eventItem.sourceContainer;
+        var current=container;
+        var depth=0;
+        var name;
+        var root=null;
+
+        while(current&&depth<6){
+            name=(String(current.id||"")+" "+String(current.className||"")).toLowerCase();
+            if(/(^|[ _-])index([ _-]|$)|article[_ -]?index|index[_ -]?(list|container|wrapper)/.test(name)){
+                root=current;
+                break;
+            }
+            current=current.parentNode;
+            depth++;
+        }
+
+        if(root&&hiddenRoots.indexOf(root)===-1){
+            hiddenRoots.push(root);
+            root.className+=(root.className?" ":"")+"cfle-native-index-source";
+            root.style.display="none";
+            return;
+        }
+
+        if(container&&seen.indexOf(container)===-1){
+            seen.push(container);
+            container.className+=(container.className?" ":"")+"cfle-native-index-source";
+            container.style.display="none";
+        }
     });
 }
 
-function findEvent(id){
+function findEventById(id){
     var index;
     for(index=0;index<state.events.length;index++){
         if(state.events[index].id===id){
@@ -1276,98 +1215,9 @@ function findEvent(id){
     return null;
 }
 
-function hideNativeListingHeading(){
-    var headings=qsa("h1,h2");
-    var mount=qs("#cfle-events");
-    var index;
-    var text;
-    for(index=0;index<headings.length;index++){
-        if(mount&&mount.contains(headings[index])){
-            continue;
-        }
-        text=normalized(
-            headings[index].textContent||
-            headings[index].innerText||
-            ""
-        );
-        if(
-            text==="upcoming at chabad"||
-            text==="programs & events"||
-            text==="programs and events"
-        ){
-            headings[index].style.display="none";
-        }
-    }
-}
-
-function renderDetail(){
-    var key=requestedEventKey();
-    var mount=qs("#cfle-events");
-    var eventItem;
-    if(!key||!mount){
-        return false;
-    }
-    eventItem=findEvent(key);
-    if(
-        eventItem&&
-        !eventItem.generatedDetails&&
-        eventItem.detailsUrl&&
-        !isGeneratedDetailsUrl(eventItem.detailsUrl)
-    ){
-        window.location.replace(eventItem.detailsUrl);
-        return true;
-    }
-    hideNativeListingHeading();
-    setControlsVisible(false);
-    mount.className+=(mount.className?" ":"")+"cfle-detail-mode";
-    mount.innerHTML=eventItem?
-        detailHtml(eventItem):
-        '<div class="cfle-empty">'+
-        '<strong>This event could not be found.</strong>'+
-        '<span>It may have passed, changed, or not finished publishing to the public calendar yet.</span>'+
-        '<a class="cfle-reset-link" href="'+escapeHtml(CFG.pageUrl)+'">View all upcoming programs</a>'+
-        '</div>';
-    if(eventItem){
-        d.title=eventItem.title+" | Chabad of Fort Lee";
-    }
-    return true;
-}
-
-function openGeneratedDetail(eventItem){
-    var nextHash="event="+encodeURIComponent(eventItem.id);
-    if(window.location.hash.replace(/^#/,"")===nextHash){
-        renderDetail();
-        return;
-    }
-    window.location.hash=nextHash;
-}
-
-function setActiveFilter(key){
-    state.active=key;
-    qsa(".cfle-filter-btn").forEach(function(button){
-        button.className="cfle-filter-btn"+
-            (button.getAttribute("data-filter")===key?" active":"");
-    });
-    renderList();
-}
-
-function setChipState(){
-    qsa(".cfle-chip-btn").forEach(function(button){
-        var group=button.getAttribute("data-group");
-        var value=button.getAttribute("data-value");
-        var active=
-            (group==="range"&&state.range===value)||
-            (group==="cadence"&&state.cadence===value);
-        button.className="cfle-chip-btn"+(active?" active":"");
-    });
-}
-
-function closestButtonOrLink(node,root){
+function closestControl(node,root){
     while(node&&node!==root){
-        if(
-            node.nodeType===1&&
-            /^(A|BUTTON)$/i.test(node.tagName||"")
-        ){
+        if(node.nodeType===1&&/^(A|BUTTON)$/i.test(node.tagName||"")){
             return node;
         }
         node=node.parentNode;
@@ -1375,80 +1225,21 @@ function closestButtonOrLink(node,root){
     return null;
 }
 
-function handleClick(event){
-    var target=event.target;
-    var button=closestButtonOrLink(target,qs("#cfle-events"));
-    var eventItem;
-    var id;
-    var panel;
-    var search;
-    if(!button){
-        return;
-    }
-    if(button.classList.contains("cfle-generated-detail-link")){
-        event.preventDefault();
-        id=button.getAttribute("data-event-id");
-        eventItem=findEvent(id);
-        if(eventItem){
-            openGeneratedDetail(eventItem);
-        }
-        return;
-    }
-    if(button.classList.contains("cfle-filter-btn")){
-        event.preventDefault();
-        setActiveFilter(button.getAttribute("data-filter"));
-        return;
-    }
-    if(button.id==="cfle-more-toggle"){
-        event.preventDefault();
-        panel=qs("#cfle-more-panel");
-        if(panel){
-            panel.className=panel.className.indexOf("open")>-1?
-                "cfle-more-panel":
-                "cfle-more-panel open";
-        }
-        return;
-    }
-    if(button.classList.contains("cfle-chip-btn")){
-        event.preventDefault();
-        if(button.getAttribute("data-group")==="range"){
-            state.range=button.getAttribute("data-value");
-        }
-        if(button.getAttribute("data-group")==="cadence"){
-            state.cadence=button.getAttribute("data-value");
-        }
-        setChipState();
-        renderList();
-        return;
-    }
-    if(button.id==="cfle-reset-link"){
-        event.preventDefault();
-        state.range="all";
-        state.cadence="all";
-        state.search="";
-        search=qs("#cfle-search");
-        if(search){
-            search.value="";
-        }
-        setChipState();
-        setActiveFilter("all");
-        return;
-    }
-    if(button.classList.contains("cfle-action-btn")){
-        event.preventDefault();
-        id=button.getAttribute("data-id");
-        eventItem=findEvent(id);
-        if(!eventItem){
-            return;
-        }
-        if(button.getAttribute("data-cal")==="google"){
-            window.open(googleCalendarUrl(eventItem),"_blank");
-            return;
-        }
-        if(button.getAttribute("data-cal")==="ics"){
-            downloadIcs(eventItem);
-        }
-    }
+function setActiveFilter(key){
+    state.active=key;
+    qsa(".cfle-filter-btn").forEach(function(button){
+        button.className="cfle-filter-btn"+(button.getAttribute("data-filter")===key?" active":"");
+    });
+    renderUpcoming();
+}
+
+function setChipState(){
+    qsa(".cfle-chip-btn").forEach(function(button){
+        var group=button.getAttribute("data-group");
+        var value=button.getAttribute("data-value");
+        var active=(group==="range"&&state.range===value)||(group==="cadence"&&state.cadence===value);
+        button.className="cfle-chip-btn"+(active?" active":"");
+    });
 }
 
 function bindUi(){
@@ -1458,104 +1249,135 @@ function bindUi(){
         return;
     }
     state.uiBound=true;
-    mount.addEventListener("click",handleClick);
+    mount.addEventListener("click",function(event){
+        var control=closestControl(event.target,mount);
+        var eventItem;
+        var panel;
+        if(!control){
+            return;
+        }
+        if(control.className.indexOf("cfle-filter-btn")>-1){
+            event.preventDefault();
+            setActiveFilter(control.getAttribute("data-filter"));
+            return;
+        }
+        if(control.id==="cfle-more-toggle"){
+            event.preventDefault();
+            panel=qs("#cfle-more-panel");
+            if(panel){
+                panel.className=panel.className.indexOf("open")>-1?"cfle-more-panel":"cfle-more-panel open";
+            }
+            return;
+        }
+        if(control.className.indexOf("cfle-chip-btn")>-1){
+            event.preventDefault();
+            if(control.getAttribute("data-group")==="range"){
+                state.range=control.getAttribute("data-value");
+            }
+            if(control.getAttribute("data-group")==="cadence"){
+                state.cadence=control.getAttribute("data-value");
+            }
+            setChipState();
+            renderUpcoming();
+            return;
+        }
+        if(control.className.indexOf("cfle-action-btn")>-1){
+            event.preventDefault();
+            eventItem=findEventById(control.getAttribute("data-id"));
+            if(!eventItem){
+                return;
+            }
+            if(control.getAttribute("data-cal")==="google"){
+                window.open(googleCalendarUrl(eventItem),"_blank");
+            } else {
+                downloadIcs(eventItem);
+            }
+        }
+    });
     if(search){
         search.addEventListener("input",function(){
             state.search=this.value||"";
-            renderList();
+            renderUpcoming();
         });
     }
-    window.addEventListener("hashchange",function(){
-        if(requestedEventKey()){
-            renderDetail();
-        } else {
-            window.location.href=CFG.pageUrl;
-        }
-    });
 }
 
-function renderCurrentView(){
+function renderAll(events,fromCurrentDocument){
+    events=addSpecialEvents(events);
+    state.events=events;
+    if(fromCurrentDocument){
+        hideNativeIndexSources(events);
+    }
     bindUi();
-    if(renderDetail()){
-        return;
-    }
-    setControlsVisible(true);
-    ensureRenderContainers();
     setChipState();
-    renderList();
+    renderUpcoming();
+    renderPast();
+    renderHomepage();
+    hideExpiredDropdownLinks();
 }
 
-function showLoadFailure(){
-    var mount=qs("#cfle-events");
-    if(mount){
-        mount.innerHTML=
-            '<div class="cfle-empty">'+
-            '<strong>We couldn&rsquo;t load the programs.</strong>'+
-            '<span>Please refresh the page and try again.</span>'+
-            '</div>';
+function useCachedEvents(){
+    var cached=readCache();
+    if(cached.length){
+        renderAll(cached,false);
+        return true;
     }
+    return false;
 }
 
-function requestFeed(){
-    if(window.fetch){
-        return window.fetch(
-            freshFeedUrl(),
-            {
-                credentials:"same-origin",
-                cache:"no-store",
-                headers:{
-                    "Cache-Control":"no-cache, no-store, must-revalidate",
-                    "Pragma":"no-cache"
-                }
-            }
-        ).then(function(response){
-            if(!response.ok){
-                throw new Error(response.status);
-            }
-            return response.text();
-        });
+function loadEvents(){
+    var currentEvents=[];
+    var usedCurrent=false;
+
+    if(qs("#cfle-events")){
+        currentEvents=parseIndexEvents(d);
+        if(currentEvents.length){
+            usedCurrent=true;
+            writeCache(currentEvents);
+            renderAll(currentEvents,true);
+        }
     }
-    return new Promise(function(resolve,reject){
-        var request=new XMLHttpRequest();
-        request.open("GET",freshFeedUrl(),true);
-        request.onreadystatechange=function(){
-            if(request.readyState!==4){
-                return;
-            }
-            if(request.status>=200&&request.status<300){
-                resolve(request.responseText);
-            } else {
-                reject(new Error(request.status));
-            }
-        };
-        request.send(null);
+
+    if(!usedCurrent){
+        useCachedEvents();
+    }
+
+    requestSource().then(function(html){
+        var events=parseSourceHtml(html);
+        if(events.length){
+            writeCache(events);
+            renderAll(events,false);
+        } else if(!usedCurrent&&!state.events.length){
+            renderAll([],false);
+        }
+    }).catch(function(){
+        if(!state.events.length){
+            renderAll([],false);
+        }
     });
 }
 
 function init(){
-    var cached=readCache();
-    var rendered=false;
-    if(cached){
-        try{
-            state.events=parseFeed(cached);
-            renderCurrentView();
-            rendered=true;
-        } catch(error){
-        }
+    loadEvents();
+    if(window.MutationObserver){
+        var timer;
+        var observer=new MutationObserver(function(){
+            window.clearTimeout(timer);
+            timer=window.setTimeout(function(){
+                if(state.events.length){
+                    renderHomepage();
+                    hideExpiredDropdownLinks();
+                }
+            },150);
+        });
+        observer.observe(d.body,{childList:true,subtree:true});
     }
-    requestFeed()
-    .then(function(html){
-        writeCache(html);
-        state.events=parseFeed(html);
-        renderCurrentView();
-        rendered=true;
-    })
-    .catch(function(){
-        if(!rendered){
-            showLoadFailure();
-        }
-    });
 }
+
+window.CFLEPageEvents={
+    refresh:loadEvents,
+    parseIndexEvents:parseIndexEvents
+};
 
 if(d.readyState==="loading"){
     d.addEventListener("DOMContentLoaded",init);
