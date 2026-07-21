@@ -102,3 +102,152 @@
   .cfle-card.no-desc .cfle-title{font-size:21px}
   .cfle-actions{flex-direction:column}
 }
+/* ============================================================
+   UPCOMING AT CHABAD — V4 ALIGNMENT AND FILTER FIXES
+   ============================================================ */
+
+#cfle-events .cfle-intro{
+    display:block !important;
+    width:100% !important;
+    max-width:860px !important;
+    margin:0 auto 22px !important;
+    padding:0 12px !important;
+    box-sizing:border-box !important;
+
+    color:#3d3020 !important;
+    font-size:19px !important;
+    line-height:1.45 !important;
+    font-weight:700 !important;
+    text-align:center !important;
+}
+
+#cfle-events .cfle-more-panel{
+    display:none;
+    grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr);
+    align-items:stretch;
+    gap:22px;
+
+    width:100%;
+    margin:0 0 18px;
+    padding:18px 22px;
+
+    box-sizing:border-box;
+    border:1px solid #eadbbf;
+    border-radius:16px;
+    background:#fffaf1;
+}
+
+#cfle-events .cfle-more-panel.open{
+    display:grid;
+}
+
+#cfle-events .cfle-more-filter-group{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-width:0;
+    text-align:center;
+}
+
+#cfle-events .cfle-more-filter-label{
+    display:block;
+    margin:0 0 10px;
+    padding:0;
+
+    color:#80622f;
+    font-size:12px;
+    line-height:1.2;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-align:center;
+    text-transform:uppercase;
+}
+
+#cfle-events .cfle-more-filter-buttons{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:9px;
+    width:100%;
+}
+
+#cfle-events .cfle-more-filter-divider{
+    display:block;
+    width:1px;
+    min-height:54px;
+    padding:0;
+    background:linear-gradient(
+        to bottom,
+        rgba(214,178,106,0),
+        rgba(214,178,106,.8) 20%,
+        rgba(214,178,106,.8) 80%,
+        rgba(214,178,106,0)
+    );
+}
+
+#cfle-events .cfle-visually-hidden{
+    position:absolute !important;
+    width:1px !important;
+    height:1px !important;
+    padding:0 !important;
+    margin:-1px !important;
+    overflow:hidden !important;
+    clip:rect(0,0,0,0) !important;
+    white-space:nowrap !important;
+    border:0 !important;
+}
+
+#cfle-spotlight-section:empty,
+#cfle-main-section:empty{
+    display:none;
+}
+
+/* Remove the XHTML placeholder once JavaScript renders the content. */
+#cfle-spotlight-section,
+#cfle-main-section{
+    min-width:0;
+}
+
+/* Tablet and mobile layout */
+@media (max-width:760px){
+
+    #cfle-events .cfle-intro{
+        max-width:600px !important;
+        margin-bottom:18px !important;
+        padding-left:8px !important;
+        padding-right:8px !important;
+        font-size:17px !important;
+        line-height:1.45 !important;
+    }
+
+    #cfle-events .cfle-more-panel,
+    #cfle-events .cfle-more-panel.open{
+        grid-template-columns:1fr;
+        gap:16px;
+        padding:16px 13px;
+    }
+
+    #cfle-events .cfle-more-filter-divider{
+        width:100%;
+        height:1px;
+        min-height:1px;
+        background:linear-gradient(
+            to right,
+            rgba(214,178,106,0),
+            rgba(214,178,106,.8) 15%,
+            rgba(214,178,106,.8) 85%,
+            rgba(214,178,106,0)
+        );
+    }
+
+    #cfle-events .cfle-more-filter-buttons{
+        gap:8px;
+    }
+
+    #cfle-events .cfle-chip-btn{
+        padding:9px 13px;
+        font-size:13px;
+    }
+}
