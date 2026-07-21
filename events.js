@@ -21,7 +21,7 @@ if(base){
         stylesheet.type="text/css";
         head.appendChild(stylesheet);
     }
-    stylesheet.href=base+"events.css?v=6.2.1";
+    stylesheet.href=base+"events.css?v=6.2.2";
 }
 
 var CFG={
