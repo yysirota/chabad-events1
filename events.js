@@ -1139,10 +1139,10 @@ function clockIcon(){
 function locationIcon(){
 
     return (
-        '<span class="cfle-meta-icon" aria-hidden="true">'+
+        '<span class="cfle-meta-icon cfle-location-icon" aria-hidden="true">'+
         '<svg viewBox="0 0 24 24">'+
-        '<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z"></path>'+
-        '<circle cx="12" cy="10" r="2.4"></circle>'+
+        '<path d="M12 2.5c-4.2 0-7.4 3.2-7.4 7.3 0 5.2 7.4 11.7 7.4 11.7s7.4-6.5 7.4-11.7c0-4.1-3.2-7.3-7.4-7.3z"></path>'+
+        '<circle cx="12" cy="9.8" r="2.7"></circle>'+
         '</svg>'+
         '</span>'
     );
@@ -1151,7 +1151,7 @@ function locationIcon(){
 function appleIcon(){
 
     return (
-        '<span class="cfle-action-icon" aria-hidden="true">'+
+        '<span class="cfle-action-icon cfle-apple-logo" aria-hidden="true">'+
         '<svg viewBox="0 0 24 24">'+
         '<path fill="currentColor" d="M16.7 12.8c0-2.6 2.1-3.9 2.2-4-1.2-1.8-3.1-2-3.8-2-1.6-.2-3.2 1-4 .9-.9 0-2.1-.9-3.5-.9-1.8 0-3.5 1.1-4.5 2.7-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.5 2.7 1.4-.1 2-.9 3.7-.9 1.7 0 2.2.9 3.7.9 1.5 0 2.5-1.3 3.4-2.7 1.1-1.5 1.5-3 1.5-3.1-.1 0-3.6-1.4-3.6-4.5zM14.1 5.1c.8-1 1.3-2.3 1.2-3.6-1.2.1-2.6.8-3.4 1.8-.7.8-1.3 2.2-1.2 3.4 1.3.1 2.6-.6 3.4-1.6z"></path>'+
         '</svg>'+
@@ -1174,12 +1174,17 @@ function calendarIcon(){
 function googleIcon(){
 
     return (
-        '<span class="cfle-google-g" aria-hidden="true">'+
-        'G'+
+        '<span class="cfle-action-icon cfle-google-logo" aria-hidden="true">'+
+        '<svg viewBox="0 0 48 48">'+
+        '<path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11.1 0 20-8.9 20-20 0-1.3-.1-2.4-.4-3.5z"></path>'+
+        '<path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 18.9 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z"></path>'+
+        '<path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"></path>'+
+        '<path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"></path>'+
+        '</svg>'+
         '</span>'
     );
 }
-
+    
 function actionButtonsHtml(eventItem){
 
     var firstButton;
