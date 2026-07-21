@@ -14,7 +14,7 @@ if(base&&!d.getElementById("cfle-events-css")){
     stylesheet.id="cfle-events-css";
     stylesheet.rel="stylesheet";
     stylesheet.type="text/css";
-    stylesheet.href=base+"events.css?v=5.2";
+    stylesheet.href=base+"events.css?v=5.3";
 
     head.appendChild(stylesheet);
 }
