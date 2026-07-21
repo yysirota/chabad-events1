@@ -1,6 +1,6 @@
 /* ============================================================
    CHABAD OF FORT LEE — UPCOMING AT CHABAD
-   VERSION 5
+   VERSION 6.2 FINAL (5.6 DESIGN + AUTOMATIC DETAIL PAGES)
    ============================================================ */
 
 #cfle-events{
@@ -1440,5 +1440,83 @@
         grid-column:1/3;
         justify-content:center;
         text-align:center;
+    }
+}
+
+
+/* ============================================================
+   VERSION 6.2 FINAL — DETAIL PAGE AND ICON SAFEGUARDS
+   ============================================================ */
+
+#cfle-events.cfle-detail-mode{
+    padding-top:10px !important;
+}
+
+#cfle-events .cfle-event-detail-main{
+    min-width:0;
+}
+
+#cfle-events .cfle-event-detail-main h1{
+    overflow-wrap:anywhere;
+    word-wrap:break-word;
+}
+
+/* Keep the clock and pointed location pin in the same gold system. */
+#cfle-events .cfle-event-detail-meta .cfle-meta-icon,
+#cfle-events .cfle-event-detail-meta .cfle-location-icon{
+    color:#b77908 !important;
+}
+
+/* Underline only the location wording, never the pin itself. */
+#cfle-events .cfle-event-detail-location,
+#cfle-events .cfle-event-detail-location:hover{
+    text-decoration:none !important;
+}
+
+#cfle-events .cfle-event-detail-location > .cfle-nowrap{
+    display:inline-block;
+    border-bottom:1px solid rgba(166,110,9,.55);
+    line-height:1.15;
+}
+
+#cfle-events .cfle-event-detail-location:hover > .cfle-nowrap{
+    border-bottom-color:#7d5000;
+}
+
+/* Preserve the larger Google / Apple / generic calendar logos in detail mode. */
+#cfle-events .cfle-event-detail-actions .cfle-action-icon,
+#cfle-events .cfle-event-detail-actions .cfle-google-logo,
+#cfle-events .cfle-event-detail-actions .cfle-apple-logo,
+#cfle-events .cfle-event-detail-actions .cfle-action-icon svg,
+#cfle-events .cfle-event-detail-actions .cfle-google-logo svg,
+#cfle-events .cfle-event-detail-actions .cfle-apple-logo svg{
+    width:28px !important;
+    height:28px !important;
+    flex-basis:28px !important;
+}
+
+#cfle-events .cfle-event-detail-actions .cfle-action-btn{
+    max-width:270px;
+}
+
+@media (max-width:700px){
+
+    #cfle-events.cfle-detail-mode{
+        padding-top:4px !important;
+    }
+
+    #cfle-events .cfle-event-detail-actions .cfle-action-btn{
+        max-width:none;
+    }
+
+    #cfle-events .cfle-event-detail-actions .cfle-action-icon,
+    #cfle-events .cfle-event-detail-actions .cfle-google-logo,
+    #cfle-events .cfle-event-detail-actions .cfle-apple-logo,
+    #cfle-events .cfle-event-detail-actions .cfle-action-icon svg,
+    #cfle-events .cfle-event-detail-actions .cfle-google-logo svg,
+    #cfle-events .cfle-event-detail-actions .cfle-apple-logo svg{
+        width:24px !important;
+        height:24px !important;
+        flex-basis:24px !important;
     }
 }
