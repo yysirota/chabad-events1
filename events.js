@@ -2,28 +2,26 @@
 
 var d=document;
 var head=d.getElementsByTagName("head")[0]||d.documentElement;
-var cur=d.currentScript||
-    d.getElementsByTagName("script")[
-        d.getElementsByTagName("script").length-1
-    ];
-var src=cur&&cur.src?cur.src:"";
-var base=src.substring(0,src.lastIndexOf("/")+1);
-var css=d.getElementById("cfle-events-css");
+var scripts=d.getElementsByTagName("script");
+var current=d.currentScript||scripts[scripts.length-1];
+var source=current&&current.src?current.src:"";
+var base=source.substring(0,source.lastIndexOf("/")+1);
 
-if(base&&!css){
+if(base&&!d.getElementById("cfle-events-css")){
 
-    css=d.createElement("link");
-    css.id="cfle-events-css";
-    css.rel="stylesheet";
-    css.type="text/css";
-    css.href=base+"events.css?v=4";
+    var stylesheet=d.createElement("link");
 
-    head.appendChild(css);
+    stylesheet.id="cfle-events-css";
+    stylesheet.rel="stylesheet";
+    stylesheet.type="text/css";
+    stylesheet.href=base+"events.css?v=5";
+
+    head.appendChild(stylesheet);
 }
 
-var CFG={
+var CONFIG={
     feedUrl:"/templates/events.htm",
-    cacheKey:"cfleEventsV4",
+    cacheKey:"cfleEventsV5",
     cacheMs:600000
 };
 
@@ -37,21 +35,17 @@ var state={
 
 function qs(selector,parent){
 
-    return (parent||d).querySelector(
-        selector
-    );
+    return (parent||d).querySelector(selector);
 }
 
 function qsa(selector,parent){
 
     return [].slice.call(
-        (parent||d).querySelectorAll(
-            selector
-        )
+        (parent||d).querySelectorAll(selector)
     );
 }
 
-function txt(value){
+function cleanText(value){
 
     return String(value||"")
         .replace(/\u00a0/g," ")
@@ -59,22 +53,20 @@ function txt(value){
         .replace(/^\s+|\s+$/g,"");
 }
 
-function esc(value){
+function escapeHtml(value){
 
-    return String(value||"")
-        .replace(/[&<>"]/g,function(character){
+    return String(value||"").replace(/[&<>"]/g,function(character){
 
-            return {
-                "&":"&amp;",
-                "<":"&lt;",
-                ">":"&gt;",
-                "\"":"&quot;"
-            }[character];
-
-        });
+        return {
+            "&":"&amp;",
+            "<":"&lt;",
+            ">":"&gt;",
+            "\"":"&quot;"
+        }[character];
+    });
 }
 
-function abs(url){
+function absoluteUrl(url){
 
     var link;
 
@@ -88,12 +80,12 @@ function abs(url){
     return link.href;
 }
 
-function slug(value){
+function normalized(value){
 
-    return txt(value).toLowerCase();
+    return cleanText(value).toLowerCase();
 }
 
-function isApple(){
+function isAppleDevice(){
 
     return /iPhone|iPad|iPod|Macintosh/i.test(
         navigator.userAgent||""
@@ -109,7 +101,7 @@ function pad(number){
         String(number);
 }
 
-function monthNum(name){
+function monthNumber(name){
 
     var months={
         january:1,
@@ -133,10 +125,9 @@ function monthNum(name){
 
 function parseClock(value){
 
-    var match=
-        txt(value).match(
-            /(\d{1,2}):(\d{2})\s*(am|pm)/i
-        );
+    var match=cleanText(value).match(
+        /(\d{1,2}):(\d{2})\s*(am|pm)/i
+    );
 
     var hour;
 
@@ -161,17 +152,16 @@ function parseClock(value){
     }
 
     return {
-        h:hour,
-        m:parseInt(match[2],10)
+        hour:hour,
+        minute:parseInt(match[2],10)
     };
 }
 
 function parseDateLabel(value){
 
-    var match=
-        txt(value).match(
-            /(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Shabbat)\s*,?\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*,?\s*(\d{4})/i
-        );
+    var match=cleanText(value).match(
+        /(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Shabbat)\s*,?\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*,?\s*(\d{4})/i
+    );
 
     if(!match){
         return null;
@@ -193,7 +183,7 @@ function parseDateLabel(value){
     };
 }
 
-function getEventDateObj(eventItem){
+function getEventDate(eventItem){
 
     var time;
     var monthIndex;
@@ -202,37 +192,31 @@ function getEventDateObj(eventItem){
         return null;
     }
 
-    time=
-        parseClock(eventItem.time)||
-        {
-            h:12,
-            m:0
-        };
+    time=parseClock(eventItem.time)||{
+        hour:12,
+        minute:0
+    };
 
-    monthIndex=
-        monthNum(
-            eventItem.date.month
-        )-1;
+    monthIndex=monthNumber(eventItem.date.month)-1;
 
     return new Date(
         eventItem.date.year,
         monthIndex,
         eventItem.date.day,
-        time.h,
-        time.m,
+        time.hour,
+        time.minute,
         0,
         0
     );
 }
 
-function rangeMatch(eventItem){
+function matchesRange(eventItem){
 
     var now=new Date();
-    var eventDate=
-        getEventDateObj(eventItem);
-
+    var eventDate=getEventDate(eventItem);
     var start;
     var end;
+    var remainingDays;
 
     if(!eventDate){
         return true;
@@ -243,30 +227,19 @@ function rangeMatch(eventItem){
         start=new Date(
             now.getFullYear(),
             now.getMonth(),
-            now.getDate()
-        );
-
-        end=new Date(
-            start.getTime()
-        );
-
-        end.setDate(
-            start.getDate()+
-            (6-start.getDay()+7)%7+
-            1
-        );
-
-        end.setHours(
+            now.getDate(),
             0,
             0,
             0,
             0
         );
 
-        return (
-            eventDate>=start&&
-            eventDate<end
-        );
+        remainingDays=(7-start.getDay())%7;
+
+        end=new Date(start.getTime());
+        end.setDate(start.getDate()+remainingDays+1);
+
+        return eventDate>=start&&eventDate<end;
     }
 
     if(state.range==="thismonth"){
@@ -283,16 +256,13 @@ function rangeMatch(eventItem){
             1
         );
 
-        return (
-            eventDate>=start&&
-            eventDate<end
-        );
+        return eventDate>=start&&eventDate<end;
     }
 
     return true;
 }
 
-function cadenceMatch(eventItem){
+function matchesCadence(eventItem){
 
     if(state.cadence==="recurring"){
         return !!eventItem.recurring;
@@ -305,31 +275,28 @@ function cadenceMatch(eventItem){
     return true;
 }
 
-function mapUrl(location){
+function mapsUrl(location){
 
-    var query=
-        encodeURIComponent(
-            (
-                location.name?
-                location.name+" ":
-                ""
-            )+
-            (
-                location.address||
-                location.text||
-                ""
-            )
-        );
-
-    if(
-        /Android/i.test(
-            navigator.userAgent||""
+    var query=encodeURIComponent(
+        (
+            location.name?
+            location.name+" ":
+            ""
+        )+
+        (
+            location.address||
+            location.text||
+            ""
         )
-    ){
+    );
+
+    if(/Android/i.test(navigator.userAgent||"")){
+
         return "geo:0,0?q="+query;
     }
 
-    if(isApple()){
+    if(isAppleDevice()){
+
         return "https://maps.apple.com/?q="+query;
     }
 
@@ -340,11 +307,22 @@ function mapUrl(location){
     );
 }
 
-function googleCalUrl(eventItem){
+function calendarTimestamp(dateValue){
 
-    var start=
-        getEventDateObj(eventItem);
+    return (
+        dateValue.getFullYear()+
+        pad(dateValue.getMonth()+1)+
+        pad(dateValue.getDate())+
+        "T"+
+        pad(dateValue.getHours())+
+        pad(dateValue.getMinutes())+
+        "00"
+    );
+}
 
+function googleCalendarUrl(eventItem){
+
+    var start=getEventDate(eventItem);
     var end;
     var description="";
 
@@ -364,48 +342,36 @@ function googleCalUrl(eventItem){
             eventItem.detailsUrl;
     }
 
-    function stamp(dateValue){
-
-        return (
-            dateValue.getFullYear()+
-            pad(dateValue.getMonth()+1)+
-            pad(dateValue.getDate())+
-            "T"+
-            pad(dateValue.getHours())+
-            pad(dateValue.getMinutes())+
-            "00"
-        );
-    }
-
     return (
-        "https://calendar.google.com/"+
-        "calendar/render?action=TEMPLATE"+
+        "https://calendar.google.com/calendar/render"+
+        "?action=TEMPLATE"+
         "&text="+
-        encodeURIComponent(
-            eventItem.title
-        )+
+        encodeURIComponent(eventItem.title)+
         "&dates="+
         encodeURIComponent(
-            stamp(start)+
+            calendarTimestamp(start)+
             "/"+
-            stamp(end)
+            calendarTimestamp(end)
         )+
         "&location="+
-        encodeURIComponent(
-            eventItem.location.text||""
-        )+
+        encodeURIComponent(eventItem.location.text||"")+
         "&details="+
-        encodeURIComponent(
-            description
-        )
+        encodeURIComponent(description)
     );
 }
 
-function icsText(eventItem){
+function safeCalendarText(value){
 
-    var start=
-        getEventDateObj(eventItem);
+    return String(value||"")
+        .replace(/\\/g,"\\\\")
+        .replace(/\r?\n/g,"\\n")
+        .replace(/,/g,"\\,")
+        .replace(/;/g,"\\;");
+}
 
+function createIcs(eventItem){
+
+    var start=getEventDate(eventItem);
     var end;
     var description="";
 
@@ -425,33 +391,10 @@ function icsText(eventItem){
             eventItem.detailsUrl;
     }
 
-    function stamp(dateValue){
-
-        return (
-            dateValue.getFullYear()+
-            pad(dateValue.getMonth()+1)+
-            pad(dateValue.getDate())+
-            "T"+
-            pad(dateValue.getHours())+
-            pad(dateValue.getMinutes())+
-            "00"
-        );
-    }
-
-    function safe(value){
-
-        return String(value||"")
-            .replace(/\\/g,"\\\\")
-            .replace(/\r?\n/g,"\\n")
-            .replace(/,/g,"\\,")
-            .replace(/;/g,"\\;");
-    }
-
     return (
         "BEGIN:VCALENDAR\r\n"+
         "VERSION:2.0\r\n"+
-        "PRODID:-//Chabad of Fort Lee//"+
-        "Upcoming at Chabad//EN\r\n"+
+        "PRODID:-//Chabad of Fort Lee//Upcoming at Chabad//EN\r\n"+
         "BEGIN:VEVENT\r\n"+
         "UID:"+
         Date.now()+
@@ -459,34 +402,30 @@ function icsText(eventItem){
         Math.random().toString(36).slice(2)+
         "@chabadfortlee.com\r\n"+
         "DTSTART:"+
-        stamp(start)+
+        calendarTimestamp(start)+
         "\r\n"+
         "DTEND:"+
-        stamp(end)+
+        calendarTimestamp(end)+
         "\r\n"+
         "SUMMARY:"+
-        safe(eventItem.title)+
+        safeCalendarText(eventItem.title)+
         "\r\n"+
         "LOCATION:"+
-        safe(
-            eventItem.location.text||""
-        )+
+        safeCalendarText(eventItem.location.text||"")+
         "\r\n"+
         "DESCRIPTION:"+
-        safe(description)+
+        safeCalendarText(description)+
         "\r\n"+
         "END:VEVENT\r\n"+
         "END:VCALENDAR"
     );
 }
 
-function downloadICS(eventItem){
+function downloadIcs(eventItem){
 
-    var content=
-        icsText(eventItem);
-
+    var content=createIcs(eventItem);
     var blob;
-    var url;
+    var objectUrl;
     var link;
 
     if(!content){
@@ -496,31 +435,22 @@ function downloadICS(eventItem){
     blob=new Blob(
         [content],
         {
-            type:
-                "text/calendar;charset=utf-8"
+            type:"text/calendar;charset=utf-8"
         }
     );
 
-    url=URL.createObjectURL(
-        blob
-    );
+    objectUrl=URL.createObjectURL(blob);
 
     link=d.createElement("a");
-    link.href=url;
+    link.href=objectUrl;
 
     link.download=
         (
             eventItem.title||
             "event"
         )
-        .replace(
-            /[^a-z0-9]+/gi,
-            "-"
-        )
-        .replace(
-            /^-+|-+$/g,
-            ""
-        )
+        .replace(/[^a-z0-9]+/gi,"-")
+        .replace(/^-+|-+$/g,"")
         .toLowerCase()+
         ".ics";
 
@@ -530,9 +460,7 @@ function downloadICS(eventItem){
 
     window.setTimeout(function(){
 
-        URL.revokeObjectURL(
-            url
-        );
+        URL.revokeObjectURL(objectUrl);
 
     },1500);
 }
@@ -541,22 +469,14 @@ function getCache(){
 
     try{
 
-        var raw=
-            sessionStorage.getItem(
-                CFG.cacheKey
-            );
-
-        var stored=
-            raw?
-            JSON.parse(raw):
-            null;
+        var raw=sessionStorage.getItem(CONFIG.cacheKey);
+        var saved=raw?JSON.parse(raw):null;
 
         if(
-            stored&&
-            Date.now()-stored.time<
-            CFG.cacheMs
+            saved&&
+            Date.now()-saved.time<CONFIG.cacheMs
         ){
-            return stored.html;
+            return saved.html;
         }
 
     }catch(error){}
@@ -564,12 +484,12 @@ function getCache(){
     return "";
 }
 
-function setCache(html){
+function saveCache(html){
 
     try{
 
         sessionStorage.setItem(
-            CFG.cacheKey,
+            CONFIG.cacheKey,
             JSON.stringify({
                 time:Date.now(),
                 html:html
@@ -583,34 +503,29 @@ function extractMarkers(title){
 
     var markers=[];
 
-    var clean=
-        String(title||"")
-        .replace(
-            /\[([^\]]+)\]/g,
-            function(full,marker){
+    var cleanTitle=String(title||"").replace(
+        /\[([^\]]+)\]/g,
+        function(full,marker){
 
-                markers.push(
-                    txt(marker)
-                );
+            markers.push(cleanText(marker));
 
-                return "";
-            }
-        );
+            return "";
+        }
+    );
 
     return {
         markers:markers,
-        clean:txt(clean)
+        clean:cleanText(cleanTitle)
     };
 }
 
 function parseLocation(item){
 
-    var link=
-        qs(
-            '.event_info a[href*="maps.google.com"],'+
-            '.event_info a[href*="google.com/maps"]',
-            item
-        );
+    var link=qs(
+        '.event_info a[href*="maps.google.com"],'+
+        '.event_info a[href*="google.com/maps"]',
+        item
+    );
 
     var clone;
     var breaks;
@@ -627,77 +542,51 @@ function parseLocation(item){
         };
     }
 
-    clone=
-        link.cloneNode(true);
-
-    breaks=
-        clone.getElementsByTagName(
-            "br"
-        );
+    clone=link.cloneNode(true);
+    breaks=clone.getElementsByTagName("br");
 
     while(breaks.length){
 
-        breaks[0].parentNode
-            .replaceChild(
-                d.createTextNode(" | "),
-                breaks[0]
-            );
+        breaks[0].parentNode.replaceChild(
+            d.createTextNode(" | "),
+            breaks[0]
+        );
     }
 
-    textValue=
-        txt(
-            clone.textContent||
-            clone.innerText
-        );
+    textValue=cleanText(
+        clone.textContent||
+        clone.innerText
+    );
 
-    parts=
-        textValue.split("|");
+    parts=textValue.split("|");
 
     return {
-        text:
-            textValue.replace(
-                /\s*\|\s*/g,
-                " — "
-            ),
-        name:
-            txt(parts[0]),
-        address:
-            txt(
-                parts.slice(1).join(" ")
-            ),
-        url:
-            abs(
-                link.getAttribute(
-                    "href"
-                )
-            )
+        text:textValue.replace(
+            /\s*\|\s*/g,
+            " — "
+        ),
+        name:cleanText(parts[0]),
+        address:cleanText(parts.slice(1).join(" ")),
+        url:absoluteUrl(link.getAttribute("href"))
     };
 }
 
 function parseDescription(item){
 
-    var infoBlocks=
-        qsa(
-            ".event_wrapper > .event_info",
-            item
-        );
+    var blocks=qsa(
+        ".event_wrapper > .event_info",
+        item
+    );
 
     var index;
     var value;
 
-    for(
-        index=0;
-        index<infoBlocks.length;
-        index++
-    ){
+    for(index=0;index<blocks.length;index++){
 
-        value=
-            txt(
-                infoBlocks[index]
-                    .textContent||
-                infoBlocks[index]
-                    .innerText
-            );
+        value=cleanText(
+            blocks[index].textContent||
+            blocks[index].innerText
+        );
 
         if(value){
             return value;
@@ -709,118 +598,83 @@ function parseDescription(item){
 
 function parseEvent(item){
 
-    var parent=
-        item.parentNode;
+    var parent=item.parentNode;
+    var dateNode=qs(".date_stamp .date",parent);
+    var date=parseDateLabel(
+        dateNode?
+        dateNode.textContent:
+        ""
+    );
 
-    var dateNode=
-        qs(
-            ".date_stamp .date",
-            parent
-        );
+    var optionDivs=qsa(
+        ".event_options.list_info div",
+        item
+    );
 
-    var date=
-        parseDateLabel(
-            dateNode?
-            dateNode.textContent:
-            ""
-        );
-
-    var timeNode="";
+    var time="";
+    var optionText;
+    var index;
     var titleNode;
     var rawTitle;
-    var titleBits;
+    var titleData;
     var details;
 
-    var optionDivs=
-        qsa(
-            ".event_options.list_info div",
-            item
+    for(index=optionDivs.length-1;index>=0;index--){
+
+        optionText=cleanText(
+            optionDivs[index].textContent||
+            optionDivs[index].innerText
         );
 
-    var index;
-    var optionText;
-
-    for(
-        index=optionDivs.length-1;
-        index>=0;
-        index--
-    ){
-
-        optionText=
-            txt(
-                optionDivs[index]
-                    .textContent||
-                optionDivs[index]
-                    .innerText
-            );
-
         if(
-            /\d{1,2}:\d{2}\s*(am|pm)/i
-                .test(optionText)
+            /\d{1,2}:\d{2}\s*(am|pm)/i.test(
+                optionText
+            )
         ){
-            timeNode=optionText;
+            time=optionText;
             break;
         }
     }
 
-    titleNode=
-        qs(
-            ".event_wrapper .event_name",
-            item
-        );
+    titleNode=qs(
+        ".event_wrapper .event_name",
+        item
+    );
 
-    rawTitle=
-        titleNode?
-        txt(
+    rawTitle=titleNode?
+        cleanText(
             titleNode.textContent||
             titleNode.innerText
         ):
         "";
 
-    titleBits=
-        extractMarkers(
-            rawTitle
-        );
-
-    details=
-        qs(
-            ".more_info a",
-            item
-        );
+    titleData=extractMarkers(rawTitle);
+    details=qs(".more_info a",item);
 
     return {
         id:
-            "ev-"+
-            Math.random()
-                .toString(36)
-                .slice(2),
+            "event-"+
+            Math.random().toString(36).slice(2),
 
         rawTitle:rawTitle,
 
         title:
-            titleBits.clean||
+            titleData.clean||
             rawTitle,
 
-        markers:
-            titleBits.markers,
+        markers:titleData.markers,
 
         date:date,
 
-        time:timeNode,
+        time:time,
 
-        description:
-            parseDescription(item),
+        description:parseDescription(item),
 
-        location:
-            parseLocation(item),
+        location:parseLocation(item),
 
         detailsUrl:
             details?
-            abs(
-                details.getAttribute(
-                    "href"
-                )
-            ):
+            absoluteUrl(details.getAttribute("href")):
             "",
 
         categories:[],
@@ -833,47 +687,37 @@ function parseEvent(item){
     };
 }
 
-function addCat(eventItem,key){
+function addCategory(eventItem,key){
 
-    if(
-        eventItem.categories
-            .indexOf(key)===-1
-    ){
-        eventItem.categories.push(
-            key
-        );
+    if(eventItem.categories.indexOf(key)===-1){
+
+        eventItem.categories.push(key);
     }
 }
 
 function inferCategories(eventItem){
 
-    var title=
-        slug(eventItem.title);
+    var title=normalized(eventItem.title);
 
-    var markers=
-        eventItem.markers.map(
-            function(marker){
+    var markers=eventItem.markers.map(
+        function(marker){
 
-                return slug(marker);
-            }
-        );
+            return normalized(marker);
+        }
+    );
 
     function hasMarker(options){
 
         return options.some(
             function(option){
 
-                return markers
-                    .indexOf(option)>-1;
+                return markers.indexOf(option)>-1;
             }
         );
     }
 
-    if(
-        hasMarker([
-            "spotlight"
-        ])
-    ){
+    if(hasMarker(["spotlight"])){
+
         eventItem.spotlight=true;
     }
 
@@ -884,6 +728,7 @@ function inferCategories(eventItem){
             "spotlight"
         ])
     ){
+
         eventItem.featured=true;
     }
 
@@ -893,10 +738,8 @@ function inferCategories(eventItem){
             "holidays"
         ])
     ){
-        addCat(
-            eventItem,
-            "holidays"
-        );
+
+        addCategory(eventItem,"holidays");
     }
 
     if(
@@ -908,10 +751,8 @@ function inferCategories(eventItem){
             "family"
         ])
     ){
-        addCat(
-            eventItem,
-            "youth"
-        );
+
+        addCategory(eventItem,"youth");
     }
 
     if(
@@ -923,10 +764,8 @@ function inferCategories(eventItem){
             "study"
         ])
     ){
-        addCat(
-            eventItem,
-            "learning"
-        );
+
+        addCategory(eventItem,"learning");
     }
 
     if(
@@ -937,6 +776,7 @@ function inferCategories(eventItem){
             "monthly"
         ])
     ){
+
         eventItem.recurring=true;
     }
 
@@ -947,128 +787,96 @@ function inferCategories(eventItem){
             "special"
         ])
     ){
+
         eventItem.recurring=false;
     }
 
     if(
-        /rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tu b.?shvat|tisha b.?av|selichot|high holiday/
-        .test(title)
+        /rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tu b.?shvat|tisha b.?av|selichot|high holiday/.test(title)
     ){
-        addCat(
-            eventItem,
-            "holidays"
-        );
+
+        addCategory(eventItem,"holidays");
     }
 
     if(
-        /youth|teen|cteen|child|children|kid|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/
-        .test(title)
+        /youth|teen|cteen|child|children|kid|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/.test(title)
     ){
-        addCat(
-            eventItem,
-            "youth"
-        );
+
+        addCategory(eventItem,"youth");
     }
 
     if(
-        /class|learning|learn|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox.*learn|shiur/
-        .test(title)
+        /class|learning|learn|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox.*learn|shiur/.test(title)
     ){
-        addCat(
-            eventItem,
-            "learning"
-        );
+
+        addCategory(eventItem,"learning");
     }
 
-    if(
-        /featured|spotlight/
-        .test(title)
-    ){
+    if(/featured|spotlight/.test(title)){
+
         eventItem.featured=true;
     }
 
     if(
-        /weekly|every monday|every tuesday|every wednesday|every thursday|every friday|every saturday|every sunday|ongoing|monthly/
-        .test(title)
+        /weekly|every monday|every tuesday|every wednesday|every thursday|every friday|every saturday|every sunday|ongoing|monthly/.test(title)
     ){
+
         eventItem.recurring=true;
     }
 }
 
 function finalizeEvents(events){
 
-    var counts={};
+    var titleCounts={};
     var index;
     var key;
 
-    for(
-        index=0;
-        index<events.length;
-        index++
-    ){
+    for(index=0;index<events.length;index++){
 
-        key=
-            slug(
-                events[index].title
-            );
+        key=normalized(events[index].title);
 
-        counts[key]=
-            (counts[key]||0)+1;
+        titleCounts[key]=
+            (titleCounts[key]||0)+1;
     }
 
-    for(
-        index=0;
-        index<events.length;
-        index++
-    ){
+    for(index=0;index<events.length;index++){
 
-        inferCategories(
-            events[index]
-        );
+        inferCategories(events[index]);
 
-        key=
-            slug(
-                events[index].title
-            );
+        key=normalized(events[index].title);
 
         if(
-            counts[key]>1&&
-            !events[index]
-                .markers
+            titleCounts[key]>1&&
+            !events[index].markers
                 .join(" ")
                 .match(/one-time/i)
         ){
+
             events[index].recurring=true;
         }
 
-        if(
-            events[index].spotlight
-        ){
+        if(events[index].spotlight){
+
             events[index].featured=true;
         }
     }
 
-    events.sort(
-        function(first,second){
+    events.sort(function(first,second){
 
-            var firstDate=
-                getEventDateObj(first);
+        var firstDate=getEventDate(first);
+        var secondDate=getEventDate(second);
 
-            var secondDate=
-                getEventDateObj(second);
-
-            return (
-                firstDate?
-                firstDate.getTime():
-                0
-            )-
-            (
-                secondDate?
-                secondDate.getTime():
-                0
-            );
-        }
-    );
+        return (
+            firstDate?
+            firstDate.getTime():
+            0
+        )-
+        (
+            secondDate?
+            secondDate.getTime():
+            0
+        );
+    });
 
     return events;
 }
@@ -1076,49 +884,34 @@ function finalizeEvents(events){
 function parseFeed(html){
 
     var parsedDocument=
-        new DOMParser()
-            .parseFromString(
-                html,
-                "text/html"
-            );
-
-    var items=
-        qsa(
-            ".category_item",
-            parsedDocument
+        new DOMParser().parseFromString(
+            html,
+            "text/html"
         );
+
+    var items=qsa(
+        ".category_item",
+        parsedDocument
+    );
 
     var events=[];
     var index;
     var eventItem;
 
-    for(
-        index=0;
-        index<items.length;
-        index++
-    ){
+    for(index=0;index<items.length;index++){
 
-        eventItem=
-            parseEvent(
-                items[index]
-            );
+        eventItem=parseEvent(items[index]);
 
-        if(
-            eventItem&&
-            eventItem.title
-        ){
-            events.push(
-                eventItem
-            );
+        if(eventItem&&eventItem.title){
+
+            events.push(eventItem);
         }
     }
 
-    return finalizeEvents(
-        events
-    );
+    return finalizeEvents(events);
 }
 
-function labelForFilter(key){
+function filterLabel(key){
 
     return {
         all:"All",
@@ -1131,139 +924,113 @@ function labelForFilter(key){
 
 function visibleMainEvents(){
 
-    var searchTerm=
-        slug(state.search);
+    var searchTerm=normalized(state.search);
 
-    return state.events.filter(
-        function(eventItem){
+    return state.events.filter(function(eventItem){
 
-            var haystack;
-            var categoryMatches;
+        var categoryMatches;
+        var searchText;
 
-            if(eventItem.spotlight){
-                return false;
-            }
-
-            categoryMatches=
-                state.active==="all"||
-
-                (
-                    state.active==="featured"&&
-                    eventItem.featured
-                )||
-
-                (
-                    state.active==="holidays"&&
-                    eventItem.categories
-                        .indexOf(
-                            "holidays"
-                        )>-1
-                )||
-
-                (
-                    state.active==="youth"&&
-                    eventItem.categories
-                        .indexOf(
-                            "youth"
-                        )>-1
-                )||
-
-                (
-                    state.active==="learning"&&
-                    eventItem.categories
-                        .indexOf(
-                            "learning"
-                        )>-1
-                );
-
-            if(!categoryMatches){
-                return false;
-            }
-
-            if(
-                !rangeMatch(eventItem)||
-                !cadenceMatch(eventItem)
-            ){
-                return false;
-            }
-
-            if(!searchTerm){
-                return true;
-            }
-
-            haystack=
-                slug(
-                    [
-                        eventItem.title,
-                        eventItem.description,
-                        eventItem.location.text,
-                        eventItem.categories
-                            .join(" "),
-                        eventItem.time,
-                        eventItem.date?
-                        eventItem.date.label:
-                        ""
-                    ].join(" ")
-                );
-
-            return (
-                haystack.indexOf(
-                    searchTerm
-                )>-1
-            );
+        if(eventItem.spotlight){
+            return false;
         }
-    );
+
+        categoryMatches=
+            state.active==="all"||
+
+            (
+                state.active==="featured"&&
+                eventItem.featured
+            )||
+
+            (
+                state.active==="holidays"&&
+                eventItem.categories.indexOf("holidays")>-1
+            )||
+
+            (
+                state.active==="youth"&&
+                eventItem.categories.indexOf("youth")>-1
+            )||
+
+            (
+                state.active==="learning"&&
+                eventItem.categories.indexOf("learning")>-1
+            );
+
+        if(!categoryMatches){
+            return false;
+        }
+
+        if(
+            !matchesRange(eventItem)||
+            !matchesCadence(eventItem)
+        ){
+            return false;
+        }
+
+        if(!searchTerm){
+            return true;
+        }
+
+        searchText=normalized(
+            [
+                eventItem.title,
+                eventItem.description,
+                eventItem.location.text,
+                eventItem.categories.join(" "),
+                eventItem.time,
+                eventItem.date?
+                    eventItem.date.label:
+                    ""
+            ].join(" ")
+        );
+
+        return searchText.indexOf(searchTerm)>-1;
+    });
 }
 
 function visibleSpotlights(){
 
-    return state.events.filter(
-        function(eventItem){
+    return state.events.filter(function(eventItem){
 
-            return eventItem.spotlight;
-        }
-    );
+        return eventItem.spotlight;
+    });
 }
 
-function buildTag(key,text){
+function tagHtml(type,text){
 
     var className="cfle-tag";
 
-    if(key==="featured"){
-        className+=
-            " cfle-tag--featured";
+    if(type==="featured"){
+        className+=" cfle-tag--featured";
     }
 
-    if(key==="holidays"){
-        className+=
-            " cfle-tag--holiday";
+    if(type==="holidays"){
+        className+=" cfle-tag--holiday";
     }
 
-    if(key==="youth"){
-        className+=
-            " cfle-tag--youth";
+    if(type==="youth"){
+        className+=" cfle-tag--youth";
     }
 
-    if(key==="learning"){
-        className+=
-            " cfle-tag--learning";
+    if(type==="learning"){
+        className+=" cfle-tag--learning";
     }
 
-    if(key==="recurring"){
-        className+=
-            " cfle-tag--recurring";
+    if(type==="recurring"){
+        className+=" cfle-tag--recurring";
     }
 
-    if(key==="onetime"){
-        className+=
-            " cfle-tag--onetime";
+    if(type==="onetime"){
+        className+=" cfle-tag--onetime";
     }
 
     return (
         '<span class="'+
         className+
         '">'+
-        esc(text)+
+        escapeHtml(text)+
         '</span>'
     );
 }
@@ -1277,8 +1044,9 @@ function eventTags(eventItem,isSpotlight){
         state.active==="featured"||
         eventItem.featured
     ){
+
         output.push(
-            buildTag(
+            tagHtml(
                 "featured",
                 "Featured"
             )
@@ -1286,11 +1054,11 @@ function eventTags(eventItem,isSpotlight){
     }
 
     if(
-        eventItem.categories
-            .indexOf("holidays")>-1
+        eventItem.categories.indexOf("holidays")>-1
     ){
+
         output.push(
-            buildTag(
+            tagHtml(
                 "holidays",
                 "Holiday"
             )
@@ -1298,11 +1066,11 @@ function eventTags(eventItem,isSpotlight){
     }
 
     if(
-        eventItem.categories
-            .indexOf("youth")>-1
+        eventItem.categories.indexOf("youth")>-1
     ){
+
         output.push(
-            buildTag(
+            tagHtml(
                 "youth",
                 "Youth"
             )
@@ -1310,11 +1078,11 @@ function eventTags(eventItem,isSpotlight){
     }
 
     if(
-        eventItem.categories
-            .indexOf("learning")>-1
+        eventItem.categories.indexOf("learning")>-1
     ){
+
         output.push(
-            buildTag(
+            tagHtml(
                 "learning",
                 "Classes & Learning"
             )
@@ -1322,87 +1090,170 @@ function eventTags(eventItem,isSpotlight){
     }
 
     output.push(
-        buildTag(
+        tagHtml(
             eventItem.recurring?
-            "recurring":
-            "onetime",
+                "recurring":
+                "onetime",
 
             eventItem.recurring?
-            "Weekly":
-            "One-Time"
+                "Weekly":
+                "One-Time"
         )
     );
 
     return output.join("");
 }
 
-function eventTitleHtml(eventItem){
+function titleHtml(eventItem){
 
     if(eventItem.detailsUrl){
 
         return (
             '<a class="cfle-title" href="'+
-            esc(eventItem.detailsUrl)+
+            escapeHtml(eventItem.detailsUrl)+
             '">'+
-            esc(eventItem.title)+
+            escapeHtml(eventItem.title)+
             '</a>'
         );
     }
 
     return (
-        '<span class="'+
-        'cfle-title '+
-        'cfle-title--plain">'+
-        esc(eventItem.title)+
+        '<span class="cfle-title cfle-title--plain">'+
+        escapeHtml(eventItem.title)+
+        '</span>'
+    );
+}
+
+function clockIcon(){
+
+    return (
+        '<span class="cfle-meta-icon" aria-hidden="true">'+
+        '<svg viewBox="0 0 24 24">'+
+        '<circle cx="12" cy="12" r="8"></circle>'+
+        '<path d="M12 7v5l3 2"></path>'+
+        '</svg>'+
+        '</span>'
+    );
+}
+
+function locationIcon(){
+
+    return (
+        '<span class="cfle-meta-icon" aria-hidden="true">'+
+        '<svg viewBox="0 0 24 24">'+
+        '<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z"></path>'+
+        '<circle cx="12" cy="10" r="2.4"></circle>'+
+        '</svg>'+
+        '</span>'
+    );
+}
+
+function appleIcon(){
+
+    return (
+        '<span class="cfle-action-icon" aria-hidden="true">'+
+        '<svg viewBox="0 0 24 24">'+
+        '<path fill="currentColor" d="M16.7 12.8c0-2.6 2.1-3.9 2.2-4-1.2-1.8-3.1-2-3.8-2-1.6-.2-3.2 1-4 .9-.9 0-2.1-.9-3.5-.9-1.8 0-3.5 1.1-4.5 2.7-1.9 3.3-.5 8.2 1.4 10.9.9 1.3 2 2.8 3.5 2.7 1.4-.1 2-.9 3.7-.9 1.7 0 2.2.9 3.7.9 1.5 0 2.5-1.3 3.4-2.7 1.1-1.5 1.5-3 1.5-3.1-.1 0-3.6-1.4-3.6-4.5zM14.1 5.1c.8-1 1.3-2.3 1.2-3.6-1.2.1-2.6.8-3.4 1.8-.7.8-1.3 2.2-1.2 3.4 1.3.1 2.6-.6 3.4-1.6z"></path>'+
+        '</svg>'+
+        '</span>'
+    );
+}
+
+function calendarIcon(){
+
+    return (
+        '<span class="cfle-action-icon" aria-hidden="true">'+
+        '<svg viewBox="0 0 24 24">'+
+        '<rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>'+
+        '<path d="M7 3v4M17 3v4M3 10h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>'+
+        '</svg>'+
+        '</span>'
+    );
+}
+
+function googleIcon(){
+
+    return (
+        '<span class="cfle-google-g" aria-hidden="true">'+
+        'G'+
         '</span>'
     );
 }
 
 function actionButtonsHtml(eventItem){
 
-    var secondCalendarLabel=
-        isApple()?
-        "Apple Calendar":
-        "Other Calendar";
+    var firstButton;
+    var secondButton;
+
+    if(isAppleDevice()){
+
+        firstButton=
+            '<button type="button" '+
+            'class="cfle-action-btn cfle-calendar-apple" '+
+            'data-calendar="ics" '+
+            'data-event-id="'+
+            escapeHtml(eventItem.id)+
+            '">'+
+            appleIcon()+
+            '<span>Add to Calendar</span>'+
+            '</button>';
+
+        secondButton=
+            '<button type="button" '+
+            'class="cfle-action-btn cfle-calendar-google" '+
+            'data-calendar="google" '+
+            'data-event-id="'+
+            escapeHtml(eventItem.id)+
+            '">'+
+            googleIcon()+
+            '<span>Add to Calendar</span>'+
+            '</button>';
+
+    }else{
+
+        firstButton=
+            '<button type="button" '+
+            'class="cfle-action-btn cfle-calendar-google" '+
+            'data-calendar="google" '+
+            'data-event-id="'+
+            escapeHtml(eventItem.id)+
+            '">'+
+            googleIcon()+
+            '<span>Add to Calendar</span>'+
+            '</button>';
+
+        secondButton=
+            '<button type="button" '+
+            'class="cfle-action-btn cfle-calendar-other" '+
+            'data-calendar="ics" '+
+            'data-event-id="'+
+            escapeHtml(eventItem.id)+
+            '">'+
+            calendarIcon()+
+            '<span>Add to Calendar</span>'+
+            '</button>';
+    }
 
     return (
         '<div class="cfle-actions">'+
-
-        '<button type="button" '+
-        'class="cfle-action-btn" '+
-        'data-cal="google" '+
-        'data-id="'+
-        esc(eventItem.id)+
-        '">'+
-        'Google Calendar'+
-        '</button>'+
-
-        '<button type="button" '+
-        'class="cfle-action-btn" '+
-        'data-cal="ics" '+
-        'data-id="'+
-        esc(eventItem.id)+
-        '">'+
-        secondCalendarLabel+
-        '</button>'+
-
+        firstButton+
+        secondButton+
         (
             eventItem.detailsUrl?
 
             '<a class="cfle-detail-btn" href="'+
-            esc(eventItem.detailsUrl)+
+            escapeHtml(eventItem.detailsUrl)+
             '">'+
-            'View Details'+
+            '<span>View Details</span>'+
             '</a>':
 
             ""
         )+
-
         '</div>'
     );
 }
 
-function renderMeta(eventItem){
+function metaHtml(eventItem){
 
     var parts=[];
 
@@ -1410,8 +1261,8 @@ function renderMeta(eventItem){
 
         parts.push(
             '<span class="cfle-meta-item">'+
-            '&#9716; '+
-            esc(eventItem.time)+
+            clockIcon()+
+            escapeHtml(eventItem.time)+
             '</span>'
         );
     }
@@ -1422,22 +1273,20 @@ function renderMeta(eventItem){
     ){
 
         parts.push(
-            '<a class="'+
-            'cfle-meta-item '+
-            'cfle-location" '+
+            '<a class="cfle-meta-item cfle-location" '+
             'href="'+
-            esc(
-                mapUrl(
-                    eventItem.location
-                )
+            escapeHtml(
+                mapsUrl(eventItem.location)
             )+
             '" target="_blank" '+
             'rel="noopener noreferrer">'+
-            '&#128205; '+
-            esc(
+            locationIcon()+
+            '<span class="cfle-nowrap">'+
+            escapeHtml(
                 eventItem.location.name||
                 eventItem.location.text
             )+
+            '</span>'+
             '</a>'
         );
     }
@@ -1445,7 +1294,7 @@ function renderMeta(eventItem){
     return (
         '<div class="cfle-meta">'+
         parts.join(
-            '<span class="cfle-meta-item">'+
+            '<span class="cfle-meta-separator" aria-hidden="true">'+
             '|'+
             '</span>'
         )+
@@ -1455,30 +1304,25 @@ function renderMeta(eventItem){
 
 function cardHtml(eventItem,isSpotlight){
 
-    var date=
-        eventItem.date||{};
+    var date=eventItem.date||{};
 
-    var description=
-        eventItem.description?
+    var description=eventItem.description?
 
         '<p class="cfle-desc">'+
-        esc(eventItem.description)+
+        escapeHtml(eventItem.description)+
         '</p>':
 
         "";
 
-    var className=
-        "cfle-card"+
-        (
-            isSpotlight?
-            " cfle-card--spotlight":
-            ""
-        )+
-        (
-            !eventItem.description?
-            " no-desc":
-            ""
-        );
+    var className="cfle-card";
+
+    if(isSpotlight){
+        className+=" cfle-card--spotlight";
+    }
+
+    if(!eventItem.description){
+        className+=" no-desc";
+    }
 
     return (
         '<div class="'+
@@ -1488,20 +1332,18 @@ function cardHtml(eventItem,isSpotlight){
         '<div class="cfle-date">'+
 
         '<span class="cfle-date-month">'+
-        esc(
-            (date.month||"")
-                .slice(0,3)
+        escapeHtml(
+            (date.month||"").slice(0,3)
         )+
         '</span>'+
 
         '<span class="cfle-date-day">'+
-        esc(date.day||"")+
+        escapeHtml(date.day||"")+
         '</span>'+
 
         '<span class="cfle-date-weekday">'+
-        esc(
-            (date.weekday||"")
-                .slice(0,3)
+        escapeHtml(
+            (date.weekday||"").slice(0,3)
         )+
         '</span>'+
 
@@ -1509,142 +1351,94 @@ function cardHtml(eventItem,isSpotlight){
 
         '<div class="cfle-body">'+
 
-        eventTitleHtml(
-            eventItem
-        )+
+        titleHtml(eventItem)+
 
         '<div class="cfle-tags">'+
-        eventTags(
-            eventItem,
-            isSpotlight
-        )+
+        eventTags(eventItem,isSpotlight)+
         '</div>'+
 
         description+
 
-        renderMeta(
-            eventItem
-        )+
+        metaHtml(eventItem)+
 
         '</div>'+
 
-        actionButtonsHtml(
-            eventItem
-        )+
+        actionButtonsHtml(eventItem)+
 
         '</div>'
     );
 }
 
-function renderEmpty(){
+function emptyHtml(){
 
     return (
         '<div class="cfle-empty">'+
-
-        '<strong>'+
-        'Nothing here just yet.'+
-        '</strong>'+
-
+        '<strong>Nothing here just yet.</strong>'+
         '<span>'+
         'More programs are on the way&mdash;'+
         'try another category or check back soon.'+
         '</span>'+
-
-        '<a href="#" '+
-        'class="cfle-reset-link" '+
-        'id="cfle-reset-link">'+
+        '<a href="#" class="cfle-reset-link" id="cfle-reset-link">'+
         'View All'+
         '</a>'+
-
         '</div>'
     );
 }
 
-function ensureRenderContainers(){
+function ensureContainers(){
 
-    var mount=
-        qs("#cfle-events");
-
-    var spotWrap=
-        qs("#cfle-spotlight-section");
-
-    var mainWrap=
-        qs("#cfle-main-section");
+    var mount=qs("#cfle-events");
+    var spotlight=qs("#cfle-spotlight-section");
+    var main=qs("#cfle-main-section");
 
     if(!mount){
 
         return {
             mount:null,
-            spotWrap:null,
-            mainWrap:null
+            spotlight:null,
+            main:null
         };
     }
 
-    if(!spotWrap){
+    if(!spotlight){
 
-        spotWrap=
-            d.createElement("div");
+        spotlight=d.createElement("div");
+        spotlight.id="cfle-spotlight-section";
+        spotlight.className="cfle-section";
 
-        spotWrap.id=
-            "cfle-spotlight-section";
-
-        spotWrap.className=
-            "cfle-section";
-
-        mount.appendChild(
-            spotWrap
-        );
+        mount.appendChild(spotlight);
     }
 
-    if(!mainWrap){
+    if(!main){
 
-        mainWrap=
-            d.createElement("div");
+        main=d.createElement("div");
+        main.id="cfle-main-section";
+        main.className="cfle-section";
 
-        mainWrap.id=
-            "cfle-main-section";
-
-        mainWrap.className=
-            "cfle-section";
-
-        mount.appendChild(
-            mainWrap
-        );
+        mount.appendChild(main);
     }
 
     return {
         mount:mount,
-        spotWrap:spotWrap,
-        mainWrap:mainWrap
+        spotlight:spotlight,
+        main:main
     };
 }
 
 function render(){
 
-    var containers=
-        ensureRenderContainers();
-
-    var spot=
-        visibleSpotlights();
-
-    var main=
-        visibleMainEvents();
-
-    var count=
-        qs("#cfle-count");
-
-    var headingLabel=
-        labelForFilter(
-            state.active
-        );
-
+    var containers=ensureContainers();
+    var count=qs("#cfle-count");
+    var spotlightEvents=visibleSpotlights();
+    var mainEvents=visibleMainEvents();
+    var heading=filterLabel(state.active);
     var html="";
     var index;
 
     if(
         !containers.mount||
-        !containers.spotWrap||
-        !containers.mainWrap||
+        !containers.spotlight||
+        !containers.main||
         !count
     ){
         return;
@@ -1652,104 +1446,83 @@ function render(){
 
     count.innerHTML=
         "<strong>"+
-        main.length+
+        mainEvents.length+
         "</strong> upcoming programs";
 
-    if(spot.length){
+    if(spotlightEvents.length){
 
         html=
             '<h2 class="cfle-section-title">'+
-            '<span class="cfle-star">'+
-            '&#9733;'+
-            '</span> '+
-            'Spotlight'+
+            '<span class="cfle-star">&#9733;</span>'+
+            '<span>Spotlight</span>'+
             '</h2>'+
-
             '<p class="cfle-subtle">'+
             'Promoted programs always stay visible here.'+
             '</p>'+
-
-            '<div class="'+
-            'cfle-spot-grid '+
-            'count-'+
+            '<div class="cfle-spot-grid count-'+
             (
-                spot.length>4?
+                spotlightEvents.length>4?
                 4:
-                spot.length
+                spotlightEvents.length
             )+
             '">';
 
-        for(
-            index=0;
-            index<spot.length;
-            index++
-        ){
+        for(index=0;index<spotlightEvents.length;index++){
 
-            html+=
-                cardHtml(
-                    spot[index],
-                    true
-                );
+            html+=cardHtml(
+                spotlightEvents[index],
+                true
+            );
         }
 
         html+="</div>";
 
-        containers.spotWrap
-            .innerHTML=html;
+        containers.spotlight.innerHTML=html;
 
     }else{
 
-        containers.spotWrap
-            .innerHTML="";
+        containers.spotlight.innerHTML="";
     }
 
     html=
         '<h2 class="cfle-section-title">'+
-        esc(headingLabel)+
-        ' <small>'+
-        'now showing'+
-        '</small>'+
+        escapeHtml(heading)+
+        ' <small>now showing</small>'+
         '</h2>';
 
-    if(main.length){
+    if(mainEvents.length){
 
         html+=
             '<div class="cfle-list">'+
-            main.map(
-                function(eventItem){
+            mainEvents.map(function(eventItem){
 
-                    return cardHtml(
-                        eventItem,
-                        false
-                    );
-                }
-            ).join("")+
+                return cardHtml(
+                    eventItem,
+                    false
+                );
+
+            }).join("")+
             '</div>';
 
     }else{
 
-        html+=renderEmpty();
+        html+=emptyHtml();
     }
 
-    containers.mainWrap
-        .innerHTML=html;
+    containers.main.innerHTML=html;
 }
 
 function setActiveFilter(key){
 
     state.active=key;
 
-    qsa(
-        ".cfle-filter-btn"
-    ).forEach(
+    qsa(".cfle-filter-btn").forEach(
         function(button){
 
             button.className=
                 "cfle-filter-btn"+
                 (
-                    button.getAttribute(
-                        "data-filter"
-                    )===key?
+                    button.getAttribute("data-filter")===key?
                     " active":
                     ""
                 );
@@ -1759,22 +1532,13 @@ function setActiveFilter(key){
     render();
 }
 
-function setChipState(){
+function updateChipStates(){
 
-    qsa(
-        ".cfle-chip-btn"
-    ).forEach(
+    qsa(".cfle-chip-btn").forEach(
         function(button){
 
-            var group=
-                button.getAttribute(
-                    "data-group"
-                );
-
-            var value=
-                button.getAttribute(
-                    "data-value"
-                );
+            var group=button.getAttribute("data-group");
+            var value=button.getAttribute("data-value");
 
             var active=
                 (
@@ -1797,19 +1561,14 @@ function setChipState(){
     );
 }
 
-function findEventById(id){
+function eventById(id){
 
     var index;
 
-    for(
-        index=0;
-        index<state.events.length;
-        index++
-    ){
+    for(index=0;index<state.events.length;index++){
 
-        if(
-            state.events[index].id===id
-        ){
+        if(state.events[index].id===id){
+
             return state.events[index];
         }
     }
@@ -1817,16 +1576,11 @@ function findEventById(id){
     return null;
 }
 
-function bindUI(){
+function bindInterface(){
 
-    var mount=
-        qs("#cfle-events");
-
-    var search=
-        qs("#cfle-search");
-
-    var panel=
-        qs("#cfle-more-panel");
+    var mount=qs("#cfle-events");
+    var search=qs("#cfle-search");
+    var panel=qs("#cfle-more-panel");
 
     if(!mount){
         return;
@@ -1836,30 +1590,25 @@ function bindUI(){
         "click",
         function(event){
 
-            var target=
-                event.target;
+            var target=event.target;
 
-            var button=
-                target.closest?
-                target.closest(
-                    "button,a"
-                ):
+            var control=target.closest?
+                target.closest("button,a"):
                 null;
 
             var eventItem;
 
             if(
-                button&&
-                button.classList
-                    .contains(
-                        "cfle-filter-btn"
-                    )
+                control&&
+                control.classList.contains(
+                    "cfle-filter-btn"
+                )
             ){
 
                 event.preventDefault();
 
                 setActiveFilter(
-                    button.getAttribute(
+                    control.getAttribute(
                         "data-filter"
                     )
                 );
@@ -1868,9 +1617,8 @@ function bindUI(){
             }
 
             if(
-                button&&
-                button.id===
-                "cfle-more-toggle"
+                control&&
+                control.id==="cfle-more-toggle"
             ){
 
                 event.preventDefault();
@@ -1878,11 +1626,8 @@ function bindUI(){
                 if(panel){
 
                     panel.className=
-                        panel.className
-                            .indexOf("open")>-1?
-
+                        panel.className.indexOf("open")>-1?
                         "cfle-more-panel":
-
                         "cfle-more-panel open";
                 }
 
@@ -1890,49 +1635,47 @@ function bindUI(){
             }
 
             if(
-                button&&
-                button.classList
-                    .contains(
-                        "cfle-chip-btn"
-                    )
+                control&&
+                control.classList.contains(
+                    "cfle-chip-btn"
+                )
             ){
 
                 event.preventDefault();
 
                 if(
-                    button.getAttribute(
+                    control.getAttribute(
                         "data-group"
                     )==="range"
                 ){
 
                     state.range=
-                        button.getAttribute(
+                        control.getAttribute(
                             "data-value"
                         );
                 }
 
                 if(
-                    button.getAttribute(
+                    control.getAttribute(
                         "data-group"
                     )==="cadence"
                 ){
 
                     state.cadence=
-                        button.getAttribute(
+                        control.getAttribute(
                             "data-value"
                         );
                 }
 
-                setChipState();
+                updateChipStates();
                 render();
 
                 return;
             }
 
             if(
-                button&&
-                button.id===
-                "cfle-reset-link"
+                control&&
+                control.id==="cfle-reset-link"
             ){
 
                 event.preventDefault();
@@ -1945,45 +1688,39 @@ function bindUI(){
                     search.value="";
                 }
 
-                setChipState();
-                setActiveFilter(
-                    "all"
-                );
+                updateChipStates();
+                setActiveFilter("all");
 
                 return;
             }
 
             if(
-                button&&
-                button.classList
-                    .contains(
-                        "cfle-action-btn"
-                    )
+                control&&
+                control.classList.contains(
+                    "cfle-action-btn"
+                )
             ){
 
                 event.preventDefault();
 
-                eventItem=
-                    findEventById(
-                        button.getAttribute(
-                            "data-id"
-                        )
-                    );
+                eventItem=eventById(
+                    control.getAttribute(
+                        "data-event-id"
+                    )
+                );
 
                 if(!eventItem){
                     return;
                 }
 
                 if(
-                    button.getAttribute(
-                        "data-cal"
+                    control.getAttribute(
+                        "data-calendar"
                     )==="google"
                 ){
 
                     window.open(
-                        googleCalUrl(
-                            eventItem
-                        ),
+                        googleCalendarUrl(eventItem),
                         "_blank"
                     );
 
@@ -1991,14 +1728,12 @@ function bindUI(){
                 }
 
                 if(
-                    button.getAttribute(
-                        "data-cal"
+                    control.getAttribute(
+                        "data-calendar"
                     )==="ics"
                 ){
 
-                    downloadICS(
-                        eventItem
-                    );
+                    downloadIcs(eventItem);
 
                     return;
                 }
@@ -2012,8 +1747,7 @@ function bindUI(){
             "input",
             function(){
 
-                state.search=
-                    this.value||"";
+                state.search=this.value||"";
 
                 render();
             }
@@ -2021,40 +1755,33 @@ function bindUI(){
     }
 }
 
-function showLoadError(){
+function showError(){
 
-    var containers=
-        ensureRenderContainers();
+    var containers=ensureContainers();
 
-    if(containers.mainWrap){
+    if(containers.main){
 
-        containers.mainWrap.innerHTML=
+        containers.main.innerHTML=
             '<div class="cfle-empty">'+
-            '<strong>'+
-            'We couldn&rsquo;t load the programs.'+
-            '</strong>'+
-            '<span>'+
-            'Please refresh the page and try again.'+
-            '</span>'+
+            '<strong>We couldn&rsquo;t load the programs.</strong>'+
+            '<span>Please refresh the page and try again.</span>'+
             '</div>';
     }
 }
 
-function init(){
+function initialize(){
 
-    var cached=
-        getCache();
+    var cached=getCache();
 
-    ensureRenderContainers();
-    bindUI();
-    setChipState();
+    ensureContainers();
+    bindInterface();
+    updateChipStates();
 
     if(cached){
 
         try{
 
-            state.events=
-                parseFeed(cached);
+            state.events=parseFeed(cached);
 
             render();
 
@@ -2062,60 +1789,50 @@ function init(){
     }
 
     fetch(
-        CFG.feedUrl,
+        CONFIG.feedUrl,
         {
             credentials:"same-origin",
             cache:"default"
         }
     )
-    .then(
-        function(response){
+    .then(function(response){
 
-            if(!response.ok){
+        if(!response.ok){
 
-                throw new Error(
-                    String(
-                        response.status
-                    )
-                );
-            }
-
-            return response.text();
+            throw new Error(
+                String(response.status)
+            );
         }
-    )
-    .then(
-        function(html){
 
-            setCache(html);
+        return response.text();
+    })
+    .then(function(html){
 
-            state.events=
-                parseFeed(html);
+        saveCache(html);
 
-            render();
+        state.events=parseFeed(html);
+
+        render();
+    })
+    .catch(function(){
+
+        if(!state.events.length){
+
+            showError();
         }
-    )
-    .catch(
-        function(){
-
-            if(!state.events.length){
-                showLoadError();
-            }
-        }
-    );
+    });
 }
 
-if(
-    d.readyState==="loading"
-){
+if(d.readyState==="loading"){
 
     d.addEventListener(
         "DOMContentLoaded",
-        init
+        initialize
     );
 
 }else{
 
-    init();
+    initialize();
 }
 
 })();
