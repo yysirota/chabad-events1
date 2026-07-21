@@ -1075,31 +1075,60 @@ function renderMeta(eventItem){
 }
 
 function cardHtml(eventItem,spotlight){
-    var date=eventItem.date||{};
-    var description=eventItem.description?
-        '<p class="cfle-desc">'+
-        escapeHtml(eventItem.description).replace(/\n/g,"<br />")+
-        '</p>':
-        "";
-    var className="cfle-card"+
-        (spotlight?" cfle-card--spotlight":"")+
-        (!eventItem.description?" no-desc":"");
-    return '<article class="'+className+'">'+
-        '<div class="cfle-date">'+
-        '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
-        '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
-        '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
-        '</div>'+
-        '<div class="cfle-body">'+
-        eventTitleHtml(eventItem)+
-        '<div class="cfle-tags">'+eventTags(eventItem,spotlight)+'</div>'+
-        description+
-        renderMeta(eventItem)+
-        '</div>'+
-        actionButtonsHtml(eventItem)+
-        '</article>';
-}
 
+    var date=eventItem.date||{};
+
+    var className=
+        "cfle-card"+
+        (
+            spotlight?
+            " cfle-card--spotlight":
+            ""
+        )+
+        " no-desc";
+
+    return '<article class="'+className+'">'+
+
+        '<div class="cfle-date">'+
+
+            '<span class="cfle-date-month">'+
+                escapeHtml(
+                    (date.month||"").slice(0,3)
+                )+
+            '</span>'+
+
+            '<span class="cfle-date-day">'+
+                escapeHtml(date.day||"")+
+            '</span>'+
+
+            '<span class="cfle-date-weekday">'+
+                escapeHtml(
+                    (date.weekday||"").slice(0,3)
+                )+
+            '</span>'+
+
+        '</div>'+
+
+        '<div class="cfle-body">'+
+
+            eventTitleHtml(eventItem)+
+
+            '<div class="cfle-tags">'+
+                eventTags(
+                    eventItem,
+                    spotlight
+                )+
+            '</div>'+
+
+            renderMeta(eventItem)+
+
+        '</div>'+
+
+        actionButtonsHtml(eventItem)+
+
+    '</article>';
+}
+    
 function emptyHtml(){
     return '<div class="cfle-empty">'+
         '<strong>Nothing here just yet.</strong>'+
