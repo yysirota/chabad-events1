@@ -2107,3 +2107,74 @@ a.cfle-home-more:hover{
     word-break:normal !important;
     overflow-wrap:normal !important;
 }
+/* ============================================================
+   MOBILE EVENT TITLE — LEFT ALIGN + SINGLE-LINE SHORT TITLES
+   VERSION 8.0.7
+   ============================================================ */
+
+@media (max-width:700px){
+
+    /*
+     * Left-align the complete information area.
+     */
+    #cfle-events .cfle-card-body,
+    #cfle-events .cfle-body{
+        align-items:flex-start !important;
+        justify-content:center !important;
+        text-align:left !important;
+    }
+
+    /*
+     * Event title is now left-aligned.
+     * JavaScript dynamically sizes it to remain on one line
+     * for short titles and at most two lines for longer titles.
+     */
+    #cfle-events .cfle-event-title,
+    #cfle-events .cfle-event-title a{
+        width:100% !important;
+        max-width:100% !important;
+
+        margin:0 0 15px !important;
+        padding:0 !important;
+
+        font-weight:900 !important;
+        line-height:1.04 !important;
+        letter-spacing:-.025em !important;
+
+        text-align:left !important;
+    }
+
+    /*
+     * Keep time and location left-aligned beneath the title.
+     */
+    #cfle-events .cfle-meta{
+        align-items:flex-start !important;
+        justify-content:flex-start !important;
+        text-align:left !important;
+    }
+
+    #cfle-events .cfle-meta-item,
+    #cfle-events .cfle-meta-row{
+        justify-content:flex-start !important;
+        text-align:left !important;
+    }
+}
+
+/*
+ * Also use left alignment when the desktop window becomes narrow,
+ * before the full mobile layout activates.
+ */
+@media (min-width:701px) and (max-width:900px){
+
+    #cfle-events .cfle-event-title,
+    #cfle-events .cfle-event-title a{
+        text-align:left !important;
+    }
+
+    #cfle-events .cfle-card-body,
+    #cfle-events .cfle-body,
+    #cfle-events .cfle-meta{
+        align-items:flex-start !important;
+        text-align:left !important;
+    }
+}
