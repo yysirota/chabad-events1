@@ -309,12 +309,12 @@ function fitAllEventTitles(root){
              * "Lox & Learn" remains one line.
              * Longer names shrink and use at most two.
              */
-            fitTitleElement(
-                title,
-                31,
-                18,
-                20
-            );
+             fitTitleElement(
+        title,
+        30,
+        14,
+        24
+    );
 
         } else if(cardWidth>=700){
 
