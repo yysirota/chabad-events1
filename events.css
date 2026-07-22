@@ -1111,483 +1111,455 @@
 }
 
 /* ============================================================
-   EVENT CARD LAYOUT RESTORATION
-   VERSION 8.0.2
+   UPCOMING AT CHABAD + HOMEPAGE LAYOUT FIX
+   VERSION 8.0.3
    ============================================================ */
 
-/* ============================================================
-   UPCOMING AT CHABAD — STANDARD TWO-COLUMN CARDS
-   ============================================================ */
-
+/* ------------------------------
+   Base grid
+------------------------------ */
 .cfle-grid{
     display:grid !important;
     grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    gap:18px !important;
+    gap:20px !important;
 }
 
-/*
- * An odd number of cards makes the first — and therefore
- * nearest upcoming — event span the complete width.
- */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd){
+/* If there is an odd number of cards, make the first (nearest) one full width */
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd){
     grid-column:1 / -1 !important;
 }
 
-/*
- * Normal half-width cards:
- * date and information above, actions across the bottom.
- */
+/* Normal card (desktop half-width) */
 .cfle-card{
     display:grid !important;
-    grid-template-columns:88px minmax(0,1fr) !important;
+    grid-template-columns:96px minmax(0,1fr) !important;
     grid-template-areas:
         "date body"
         "actions actions" !important;
     gap:0 18px !important;
+    padding:22px !important;
+    min-height:210px !important;
+    border-radius:24px !important;
+    border:2px solid rgba(229,169,0,.82) !important;
+    box-shadow:0 12px 26px rgba(0,0,0,.06) !important;
+    background:rgba(255,255,255,.25) !important;
 }
 
-/* ============================================================
-   FULL-WIDTH / WIDE EVENT CARDS
-   ============================================================ */
-
-/*
- * The nearest event becomes a wide horizontal card whenever
- * it is the unmatched card in an odd-sized list.
- */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd){
-    grid-template-columns:
-        112px
-        minmax(0,1fr)
-        minmax(250px,310px) !important;
-
-    grid-template-areas:
-        "date body actions" !important;
-
-    column-gap:26px !important;
-
-    min-height:185px !important;
-    padding:26px !important;
+/* Full-width / single / top card layout */
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd){
+    grid-template-columns:122px minmax(0,1fr) 310px !important;
+    grid-template-areas:"date body actions" !important;
     align-items:center !important;
-}
-
-/*
- * Featured cards are also wide horizontal cards.
- */
-.cfle-grid--featured > .cfle-card{
-    grid-template-columns:
-        112px
-        minmax(0,1fr)
-        minmax(250px,310px) !important;
-
-    grid-template-areas:
-        "date body actions" !important;
-
     column-gap:26px !important;
-
-    min-height:185px !important;
+    min-height:220px !important;
     padding:26px !important;
+}
+
+/* ------------------------------
+   Date block
+------------------------------ */
+.cfle-date{
+    grid-area:date !important;
+    width:96px !important;
+    min-height:132px !important;
+    padding:10px 6px !important;
+    border-radius:18px !important;
+    border:2px solid rgba(229,169,0,.58) !important;
+    background:rgba(255,251,243,.78) !important;
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:center !important;
     align-items:center !important;
+    text-align:center !important;
+    box-sizing:border-box !important;
 }
 
-/* Larger date panel on wide cards. */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-> .cfle-date,
-.cfle-grid--featured
-> .cfle-card
-> .cfle-date{
-    width:112px !important;
-    min-height:138px !important;
-    padding:15px 9px !important;
-    align-self:center !important;
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date{
+    width:122px !important;
+    min-height:152px !important;
+    padding:14px 8px !important;
 }
 
-/* Larger month and weekday. */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
 .cfle-date-month,
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-date-weekday,
-.cfle-grid--featured
-.cfle-date-month,
-.cfle-grid--featured
 .cfle-date-weekday{
-    font-size:15px !important;
+    display:block !important;
+    color:#c28608 !important;
+    font-size:13px !important;
+    font-weight:900 !important;
+    line-height:1.1 !important;
+    letter-spacing:.08em !important;
+    text-transform:uppercase !important;
 }
 
-/* Large black date number. */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-date-day,
-.cfle-grid--featured
-.cfle-date-day{
-    margin-top:6px !important;
-    margin-bottom:5px !important;
-    font-size:48px !important;
-}
-
-/* Larger event name on wide cards. */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-event-title,
-.cfle-grid--featured
-.cfle-event-title{
-    margin-bottom:13px !important;
-    font-size:31px !important;
-    line-height:1.15 !important;
-}
-
-/* Larger time and location on wide cards. */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-meta,
-.cfle-grid--featured
-.cfle-meta{
-    gap:11px !important;
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date-month,
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date-weekday{
     font-size:16px !important;
 }
 
-/* Slightly larger gold pin and clock. */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-meta-svg,
-.cfle-grid--featured
-.cfle-meta-svg{
-    width:23px !important;
-    height:23px !important;
+.cfle-date-day{
+    display:block !important;
+    margin:6px 0 4px !important;
+    color:#111 !important;
+    font-size:50px !important;
+    font-weight:900 !important;
+    line-height:1 !important;
 }
 
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-pin-svg,
-.cfle-grid--featured
-.cfle-pin-svg{
-    width:22px !important;
-    height:24px !important;
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date-day{
+    font-size:62px !important;
 }
 
-/*
- * Buttons form their own right-side column on wide cards.
- */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-> .cfle-event-actions,
-.cfle-grid--featured
-> .cfle-card
-> .cfle-event-actions{
-    grid-area:actions !important;
-
-    display:grid !important;
-    grid-template-columns:1fr !important;
-    gap:10px !important;
-
-    width:100% !important;
-    margin:0 !important;
-
+/* ------------------------------
+   Body / title / meta
+------------------------------ */
+.cfle-body{
+    grid-area:body !important;
+    min-width:0 !important;
     align-self:center !important;
 }
 
-/*
- * Every button spans the full width of the right column.
- */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-action,
-.cfle-grid--featured
-.cfle-action{
-    width:100% !important;
-    min-height:50px !important;
-    padding:11px 15px !important;
-    font-size:14px !important;
+.cfle-event-title{
+    display:block !important;
+    margin:0 0 14px 0 !important;
+    color:#1d1a17 !important;
+    font-size:24px !important;
+    font-weight:900 !important;
+    line-height:1.12 !important;
+    text-decoration:none !important;
+    word-break:break-word !important;
 }
 
-/*
- * Prevent the View Details button from retaining a grid span
- * inherited from the smaller-card layout.
- */
-.cfle-grid:not(.cfle-grid--featured)
-> .cfle-card:first-child:nth-last-child(odd)
-.cfle-view-action,
-.cfle-grid--featured
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-event-title{
+    font-size:38px !important;
+    margin-bottom:14px !important;
+}
+
+.cfle-meta{
+    display:flex !important;
+    flex-wrap:wrap !important;
+    align-items:center !important;
+    gap:10px !important;
+    color:#735d3b !important;
+    font-size:16px !important;
+    line-height:1.35 !important;
+    font-weight:700 !important;
+}
+
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-meta{
+    font-size:18px !important;
+    gap:12px !important;
+}
+
+.cfle-meta-svg{
+    width:22px !important;
+    height:22px !important;
+    color:#e3ab13 !important;
+    flex:0 0 auto !important;
+}
+
+.cfle-pin-svg{
+    width:22px !important;
+    height:24px !important;
+    color:#e3ab13 !important;
+    flex:0 0 auto !important;
+}
+
+/* ------------------------------
+   Buttons
+------------------------------ */
+.cfle-event-actions{
+    grid-area:actions !important;
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:10px !important;
+    width:100% !important;
+    margin-top:18px !important;
+    align-self:end !important;
+}
+
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-event-actions{
+    grid-template-columns:1fr !important;
+    margin-top:0 !important;
+    align-self:center !important;
+}
+
+.cfle-action{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:10px !important;
+    width:100% !important;
+    min-height:50px !important;
+    padding:10px 14px !important;
+    box-sizing:border-box !important;
+    border-radius:999px !important;
+    font-size:14px !important;
+    font-weight:800 !important;
+    text-align:center !important;
+    white-space:nowrap !important;
+}
+
 .cfle-view-action{
+    grid-column:1 / -1 !important;
+    min-height:54px !important;
+    font-size:16px !important;
+}
+
+.cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-view-action{
     grid-column:auto !important;
 }
 
-/* ============================================================
-   HOMEPAGE EVENT ROW
-   ============================================================ */
-
+/* ------------------------------
+   HOMEPAGE MODULE CARD
+------------------------------ */
 .cfle-home-event{
     display:grid !important;
-
-    grid-template-columns:
-        76px
-        minmax(0,1fr)
-        34px !important;
-
-    grid-template-areas:
-        "date content arrow" !important;
-
+    grid-template-columns:78px minmax(0,1fr) !important;
+    grid-template-areas:"date content" !important;
+    gap:14px !important;
     align-items:center !important;
-    gap:13px !important;
-
     width:100% !important;
-    padding:12px 13px !important;
-
-    border:1px solid rgba(229,169,0,.58) !important;
-    border-radius:14px !important;
-
-    background:transparent !important;
+    padding:12px 14px !important;
+    border:1.5px solid rgba(229,169,0,.72) !important;
+    border-radius:18px !important;
+    background:rgba(255,255,255,.10) !important;
+    box-shadow:none !important;
+    text-decoration:none !important;
 }
 
-/*
- * Compact homepage date square.
- */
+.cfle-home-event:hover{
+    transform:scale(1.015) !important;
+    box-shadow:0 10px 22px rgba(0,0,0,.05) !important;
+}
+
 .cfle-home-date-box{
     grid-area:date !important;
-
+    width:78px !important;
+    min-height:92px !important;
+    padding:8px 5px !important;
+    border-radius:14px !important;
+    border:1.5px solid rgba(229,169,0,.68) !important;
+    background:rgba(255,251,243,.72) !important;
     display:flex !important;
     flex-direction:column !important;
-    align-items:center !important;
     justify-content:center !important;
-
-    width:76px !important;
-    min-height:86px !important;
+    align-items:center !important;
     box-sizing:border-box !important;
-    padding:8px 5px !important;
-
-    border:1px solid rgba(229,169,0,.62) !important;
-    border-radius:12px !important;
-
-    background:rgba(255,255,255,.22) !important;
-    box-shadow:
-        inset 0 0 0 3px
-        rgba(229,169,0,.045) !important;
-
     text-align:center !important;
 }
 
 .cfle-home-date-month,
 .cfle-home-date-weekday{
     display:block !important;
-
-    color:#b17408 !important;
-    font-size:10.5px !important;
-    line-height:1.1 !important;
+    color:#b57b08 !important;
+    font-size:11px !important;
     font-weight:900 !important;
-    letter-spacing:.075em !important;
+    line-height:1.1 !important;
+    letter-spacing:.08em !important;
     text-transform:uppercase !important;
 }
 
 .cfle-home-date-day{
     display:block !important;
-
-    margin:3px 0 2px !important;
-
-    color:#171717 !important;
-    font-size:28px !important;
-    line-height:1 !important;
+    margin:2px 0 !important;
+    color:#111 !important;
+    font-size:26px !important;
     font-weight:900 !important;
+    line-height:1 !important;
 }
 
 .cfle-home-event-content{
     grid-area:content !important;
-
+    min-width:0 !important;
     display:flex !important;
     flex-direction:column !important;
-    align-items:flex-start !important;
     justify-content:center !important;
-
-    min-width:0 !important;
-    text-align:left !important;
+    align-items:flex-start !important;
 }
 
 .cfle-home-event-title{
     display:block !important;
-
-    color:#27221b !important;
-    font-size:18px !important;
-    line-height:1.2 !important;
+    margin:0 0 5px 0 !important;
+    color:#201b17 !important;
+    font-size:22px !important;
     font-weight:900 !important;
-    text-align:left !important;
+    line-height:1.08 !important;
+    text-decoration:none !important;
 }
 
 .cfle-home-event-time{
     display:inline-flex !important;
     align-items:center !important;
-    gap:5px !important;
-
-    margin-top:5px !important;
-
+    gap:6px !important;
+    margin-top:2px !important;
     color:#6f5a3b !important;
-    font-size:12.5px !important;
-    line-height:1.25 !important;
-    font-weight:750 !important;
+    font-size:14px !important;
+    font-weight:800 !important;
+    line-height:1.2 !important;
+    white-space:nowrap !important;
 }
 
 .cfle-home-event-time .cfle-meta-svg{
-    width:17px !important;
-    height:17px !important;
-    color:#e5a900 !important;
+    width:18px !important;
+    height:18px !important;
+    color:#e3ab13 !important;
 }
 
-/*
- * The homepage row remains fully clickable.
- * No Add to Calendar buttons are added here.
- */
+/* Remove the gold arrow on homepage */
 .cfle-home-event-arrow{
-    grid-area:arrow !important;
-}
-
-/*
- * The old date-label element is no longer generated,
- * but hide it safely in case a cached page briefly contains it.
- */
-.cfle-home-event-date{
     display:none !important;
 }
 
-/* ============================================================
-   TABLET / MOBILE
-   ============================================================ */
+/* View More button style on homepage */
+.cfle-home-more,
+a.cfle-home-more,
+.cfle-home-module a.cfle-home-more,
+.cfle-home-wrap a.cfle-home-more{
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    padding:12px 22px !important;
+    min-height:46px !important;
+    min-width:128px !important;
+    border-radius:999px !important;
+    border:1.5px solid rgba(229,169,0,.82) !important;
+    background:rgba(255,251,243,.72) !important;
+    color:#201b17 !important;
+    font-size:15px !important;
+    font-weight:800 !important;
+    line-height:1 !important;
+    text-decoration:none !important;
+    box-shadow:none !important;
+}
 
+.cfle-home-more:hover,
+a.cfle-home-more:hover{
+    transform:scale(1.03) !important;
+    box-shadow:0 8px 18px rgba(0,0,0,.05) !important;
+}
+
+/* ------------------------------
+   MOBILE
+------------------------------ */
 @media (max-width:700px){
 
-    /*
-     * Every Upcoming at Chabad event becomes one full-width,
-     * vertically stacked card.
-     */
-    .cfle-grid,
-    .cfle-grid--featured{
+    .cfle-grid{
         grid-template-columns:1fr !important;
+        gap:18px !important;
     }
 
     .cfle-grid > .cfle-card,
-    .cfle-grid--featured > .cfle-card,
-    .cfle-grid:not(.cfle-grid--featured)
-    > .cfle-card:first-child:nth-last-child(odd){
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd){
         grid-column:1 !important;
-
-        grid-template-columns:
-            76px
-            minmax(0,1fr) !important;
-
+        grid-template-columns:112px minmax(0,1fr) !important;
         grid-template-areas:
             "date body"
             "actions actions" !important;
-
-        gap:0 13px !important;
-
+        gap:0 16px !important;
+        padding:18px !important;
         min-height:0 !important;
-        width:100% !important;
-        padding:15px !important;
     }
 
-    /*
-     * Restore compact mobile date size.
-     */
-    .cfle-grid > .cfle-card > .cfle-date,
-    .cfle-grid--featured > .cfle-card > .cfle-date{
-        width:76px !important;
-        min-height:100px !important;
-        padding:9px 5px !important;
-        align-self:start !important;
+    .cfle-date,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date{
+        width:112px !important;
+        min-height:148px !important;
+        padding:12px 7px !important;
     }
 
-    .cfle-grid .cfle-date-day,
-    .cfle-grid--featured .cfle-date-day{
-        font-size:33px !important;
+    .cfle-date-month,
+    .cfle-date-weekday,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date-month,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date-weekday{
+        font-size:14px !important;
     }
 
-    .cfle-grid .cfle-date-month,
-    .cfle-grid .cfle-date-weekday,
-    .cfle-grid--featured .cfle-date-month,
-    .cfle-grid--featured .cfle-date-weekday{
-        font-size:11px !important;
+    .cfle-date-day,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-date-day{
+        font-size:64px !important;
     }
 
-    .cfle-grid .cfle-event-title,
-    .cfle-grid--featured .cfle-event-title{
-        margin-bottom:9px !important;
-        font-size:21px !important;
+    .cfle-event-title,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-event-title{
+        font-size:28px !important;
+        line-height:1.08 !important;
+        margin-bottom:12px !important;
     }
 
-    .cfle-grid .cfle-meta,
-    .cfle-grid--featured .cfle-meta{
-        align-items:flex-start !important;
+    .cfle-meta,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-meta{
+        display:flex !important;
         flex-direction:column !important;
-        gap:6px !important;
-        font-size:13px !important;
-    }
-
-    .cfle-grid .cfle-meta-svg,
-    .cfle-grid--featured .cfle-meta-svg{
-        width:20px !important;
-        height:20px !important;
-    }
-
-    /*
-     * Buttons stay underneath the content on mobile.
-     */
-    .cfle-grid .cfle-event-actions,
-    .cfle-grid--featured .cfle-event-actions{
-        grid-area:actions !important;
-
-        display:grid !important;
-        grid-template-columns:
-            minmax(0,1fr)
-            minmax(0,1fr) !important;
-
+        align-items:flex-start !important;
         gap:8px !important;
-
-        width:100% !important;
-        margin-top:15px !important;
+        font-size:14px !important;
+        line-height:1.25 !important;
     }
 
-    .cfle-grid .cfle-action,
-    .cfle-grid--featured .cfle-action{
-        width:100% !important;
-        min-height:44px !important;
-        padding:9px 7px !important;
-        font-size:11.5px !important;
+    .cfle-meta-svg{
+        width:22px !important;
+        height:22px !important;
     }
 
-    .cfle-grid .cfle-view-action,
-    .cfle-grid--featured .cfle-view-action{
-        grid-column:1 / -1 !important;
-        font-size:13px !important;
-    }
-
-    /*
-     * Homepage stays a compact clickable row.
-     */
-    .cfle-home-event{
-        grid-template-columns:
-            67px
-            minmax(0,1fr)
-            32px !important;
-
+    /* Two mini pills on top, big View Details below */
+    .cfle-event-actions,
+    .cfle-grid > .cfle-card:first-child:nth-last-child(odd) .cfle-event-actions{
+        display:grid !important;
+        grid-template-columns:1fr 1fr !important;
         gap:10px !important;
-        padding:10px !important;
+        width:100% !important;
+        margin-top:18px !important;
+    }
+
+    .cfle-action{
+        min-height:48px !important;
+        padding:10px 8px !important;
+        font-size:11px !important;
+        white-space:nowrap !important;
+    }
+
+    .cfle-view-action{
+        grid-column:1 / -1 !important;
+        min-height:54px !important;
+        font-size:16px !important;
+    }
+
+    /* Homepage mobile */
+    .cfle-home-event{
+        grid-template-columns:82px minmax(0,1fr) !important;
+        gap:12px !important;
+        padding:12px !important;
     }
 
     .cfle-home-date-box{
-        width:67px !important;
-        min-height:79px !important;
+        width:82px !important;
+        min-height:98px !important;
+    }
+
+    .cfle-home-date-month,
+    .cfle-home-date-weekday{
+        font-size:11px !important;
     }
 
     .cfle-home-date-day{
-        font-size:25px !important;
+        font-size:32px !important;
     }
 
     .cfle-home-event-title{
-        font-size:17px !important;
+        font-size:28px !important;
+        line-height:1.06 !important;
+        margin-bottom:6px !important;
     }
 
     .cfle-home-event-time{
-        font-size:12px !important;
+        font-size:15px !important;
+        white-space:nowrap !important;
+    }
+
+    .cfle-home-more,
+    a.cfle-home-more{
+        min-width:132px !important;
+        padding:11px 20px !important;
+        font-size:15px !important;
     }
 }
