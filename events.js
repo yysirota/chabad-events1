@@ -1161,12 +1161,50 @@ function renderHomepage(){
     }).slice(0,CFG.homepageLimit);
 
     rows=events.map(function(eventItem){
-        return '<a class="cfle-home-event" href="'+escapeHtml(eventItem.url)+'">'+
-            '<span class="cfle-home-event-date">'+escapeHtml(homeDateLabel(eventItem))+'</span>'+
-            '<strong class="cfle-home-event-title">'+escapeHtml(eventItem.title)+'</strong>'+
-            '<span class="cfle-home-event-arrow" aria-hidden="true">&#8594;</span>'+
-        '</a>';
-    }).join("");
+
+    var date=eventItem.date||{};
+
+    return '<a class="cfle-home-event" href="'+escapeHtml(eventItem.url)+'">'+
+
+        '<span class="cfle-home-date-box">'+
+            '<span class="cfle-home-date-month">'+
+                escapeHtml(
+                    (date.month||"").slice(0,3)
+                )+
+            '</span>'+
+            '<span class="cfle-home-date-day">'+
+                escapeHtml(date.day||"")+
+            '</span>'+
+            '<span class="cfle-home-date-weekday">'+
+                escapeHtml(
+                    (date.weekday||"").slice(0,3)
+                )+
+            '</span>'+
+        '</span>'+
+
+        '<span class="cfle-home-event-content">'+
+            '<strong class="cfle-home-event-title">'+
+                escapeHtml(eventItem.title)+
+            '</strong>'+
+            (
+                eventItem.time?
+                '<span class="cfle-home-event-time">'+
+                    clockIcon()+
+                    '<span>'+
+                        escapeHtml(eventItem.time)+
+                    '</span>'+
+                '</span>':
+                ''
+            )+
+        '</span>'+
+
+        '<span class="cfle-home-event-arrow" aria-hidden="true">'+
+            '&#8594;'+
+        '</span>'+
+
+    '</a>';
+
+}).join("");
 
     if(widget.className.indexOf("cfle-home-events-widget")===-1){
         widget.className+=" cfle-home-events-widget";
