@@ -2079,3 +2079,31 @@ a.cfle-home-more:hover{
         flex:0 0 20px !important;
     }
 }
+/* ============================================================
+   DYNAMIC EVENT TITLES + HOMEPAGE CLOCK REMOVAL
+   VERSION 8.0.6
+   ============================================================ */
+
+/* Remove only the clock icon from homepage event rows. */
+.cfle-home-event-time .cfle-meta-svg,
+.cfle-home-event-time > svg{
+    display:none !important;
+}
+
+.cfle-home-event-time{
+    gap:0 !important;
+}
+
+/*
+ * JavaScript chooses the largest fitting font size.
+ * These rules guarantee that titles never display beyond
+ * the calculated one-line or two-line limit.
+ */
+.cfle-home-event-title,
+#cfle-events .cfle-event-title a{
+    max-width:100% !important;
+    overflow:hidden !important;
+    text-wrap:balance;
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+}
