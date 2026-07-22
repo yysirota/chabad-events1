@@ -1,30 +1,42 @@
 (function(){
 "use strict";
 
-if(window.CFLE_PAGE_EVENTS_V70_LOADED){
+if(window.CFLE_PAGE_EVENTS_V80_LOADED){
     return;
 }
-window.CFLE_PAGE_EVENTS_V70_LOADED=true;
+window.CFLE_PAGE_EVENTS_V80_LOADED=true;
 
 var d=document;
 var CFG={
+    version:"8.0.0",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
     parentAid:"7437974",
-    cacheKey:"cflePageEventsV70",
+    cacheKey:"cflePageEventsV800",
     cacheMs:300000,
     homepageLimit:5,
-    defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024"
+    defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
+    lox:{
+        enabled:true,
+        title:"Lox & Learn",
+        url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
+        weekday:0,
+        startHour:10,
+        startMinute:0,
+        durationMinutes:60,
+        homepage:true,
+        upcoming:true
+    }
 };
 
 var state={
     events:[],
-    active:"all",
     search:"",
     range:"all",
-    cadence:"all",
-    uiBound:false
+    bound:false,
+    homeWatcherStarted:false,
+    navCleanupStarted:false
 };
 
 function qs(selector,parent){
@@ -39,6 +51,7 @@ function cleanText(value){
     return String(value||"")
         .replace(/\u00a0/g," ")
         .replace(/[\t\r]+/g," ")
+        .replace(/[–—]/g,"-")
         .replace(/ +/g," ")
         .replace(/\s*\n\s*/g,"\n")
         .replace(/^\s+|\s+$/g,"");
@@ -73,10 +86,12 @@ function absoluteUrl(url){
     return anchor.href;
 }
 
-function canonicalUrl(url){
+function canonicalPath(url){
     var anchor=d.createElement("a");
     anchor.href=url||"";
-    return (anchor.pathname||"").replace(/\/+$/g,"").toLowerCase();
+    return (anchor.pathname||"")
+        .replace(/\/+$/g,"")
+        .toLowerCase();
 }
 
 function slug(value){
@@ -117,10 +132,10 @@ function monthName(number){
     ][number]||"";
 }
 
-function weekdayName(date){
+function weekdayNameFromYmd(year,month,day){
     return [
         "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
-    ][date.getDay()];
+    ][new Date(Date.UTC(year,month-1,day)).getUTCDay()];
 }
 
 function parseClock(value){
@@ -139,16 +154,13 @@ function parseClock(value){
     return {
         hour:hour,
         minute:parseInt(match[2]||"0",10),
-        label:match[1]+(match[2]?":"+match[2]:"")+" "+match[3].toUpperCase()
+        label:parseInt(match[1],10)+(match[2]?":"+match[2]:"")+" "+match[3].toUpperCase()
     };
 }
 
 function parseDatePart(value){
     var text=oneLine(value);
     var match;
-    var year;
-    var month;
-    var day;
 
     match=text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
     if(match){
@@ -172,13 +184,10 @@ function parseDatePart(value){
 
     match=text.match(/\b(January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(20\d{2})\b/i);
     if(match){
-        month=monthNumber(match[1]);
-        day=parseInt(match[2],10);
-        year=parseInt(match[3],10);
         return {
-            year:year,
-            month:month,
-            day:day,
+            year:parseInt(match[3],10),
+            month:monthNumber(match[1]),
+            day:parseInt(match[2],10),
             raw:match[0]
         };
     }
@@ -196,145 +205,188 @@ function parseDatePart(value){
     return null;
 }
 
-function parseEventDateTime(value){
-    var text=oneLine(value);
-    var date=parseDatePart(text);
-    var timeRange;
-    var times=[];
-    var regex=/(\d{1,2}(?::\d{2})?\s*(?:am|pm))/ig;
-    var match;
-    var startClock;
-    var endClock;
-    var start;
-    var end;
-    var explicitEndDate;
-    var endMatch;
+function nthSunday(year,month,nth){
+    var firstDay=new Date(Date.UTC(year,month-1,1)).getUTCDay();
+    var firstSunday=1+((7-firstDay)%7);
+    return firstSunday+((nth-1)*7);
+}
 
-    if(!date){
-        return null;
-    }
+function newYorkOffsetHours(parts){
+    var marchSecondSunday=nthSunday(parts.year,3,2);
+    var novemberFirstSunday=nthSunday(parts.year,11,1);
+    var key=(parts.month*1000000)+(parts.day*10000)+(parts.hour*100)+parts.minute;
+    var startKey=(3*1000000)+(marchSecondSunday*10000)+(2*100);
+    var endKey=(11*1000000)+(novemberFirstSunday*10000)+(2*100);
+    return key>=startKey&&key<endKey?4:5;
+}
 
-    while((match=regex.exec(text))!==null){
-        times.push(match[1]);
-    }
-
-    startClock=times.length?parseClock(times[0]):null;
-    endClock=times.length>1?parseClock(times[1]):null;
-
-    start=new Date(
-        date.year,
-        date.month-1,
-        date.day,
-        startClock?startClock.hour:0,
-        startClock?startClock.minute:0,
+function timestampFromParts(parts){
+    return Date.UTC(
+        parts.year,
+        parts.month-1,
+        parts.day,
+        parts.hour||0,
+        parts.minute||0,
         0,
         0
-    );
+    )+(newYorkOffsetHours(parts)*60*60*1000);
+}
 
-    endMatch=text.match(/(?:End|Ends|Through|Until)\s*:\s*([^|;]+)/i);
-    explicitEndDate=endMatch?parseDatePart(endMatch[1]):null;
+function dateKey(parts){
+    return (parts.year*10000)+(parts.month*100)+parts.day;
+}
 
-    if(explicitEndDate){
-        end=new Date(
-            explicitEndDate.year,
-            explicitEndDate.month-1,
-            explicitEndDate.day,
-            endClock?endClock.hour:23,
-            endClock?endClock.minute:59,
-            endClock?0:59,
-            endClock?0:999
-        );
-    } else if(endClock){
-        end=new Date(
-            date.year,
-            date.month-1,
-            date.day,
-            endClock.hour,
-            endClock.minute,
-            0,
-            0
-        );
-        if(end.getTime()<=start.getTime()){
-            end.setDate(end.getDate()+1);
-        }
-    } else if(startClock){
-        end=new Date(start.getTime()+60*60*1000);
-    } else {
-        end=new Date(
-            date.year,
-            date.month-1,
-            date.day,
-            23,59,59,999
-        );
+function addDaysToParts(parts,days){
+    var date=new Date(Date.UTC(parts.year,parts.month-1,parts.day+days));
+    return {
+        year:date.getUTCFullYear(),
+        month:date.getUTCMonth()+1,
+        day:date.getUTCDate(),
+        hour:parts.hour||0,
+        minute:parts.minute||0
+    };
+}
+
+function parseEventDateTime(value){
+    var text=oneLine(value);
+    var dates=[];
+    var dateRegex=/(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/20\d{2}|(?:January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*20\d{2}|\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*,?\s*20\d{2})/ig;
+    var timeRegex=/(\d{1,2}(?::\d{2})?\s*(?:am|pm))/ig;
+    var times=[];
+    var match;
+    var firstDate;
+    var secondDate;
+    var startClock;
+    var endClock;
+    var startParts;
+    var endParts;
+    var allDay;
+    var startTs;
+    var endTs;
+    var timeLabel="";
+
+    while((match=dateRegex.exec(text))!==null){
+        dates.push(parseDatePart(match[1]));
+    }
+    while((match=timeRegex.exec(text))!==null){
+        times.push(parseClock(match[1]));
     }
 
-    timeRange="";
+    firstDate=dates[0]||parseDatePart(text);
+    if(!firstDate){
+        return null;
+    }
+    secondDate=dates[1]||firstDate;
+    startClock=times[0]||null;
+    endClock=times[1]||null;
+    allDay=!startClock;
+
+    startParts={
+        year:firstDate.year,
+        month:firstDate.month,
+        day:firstDate.day,
+        hour:startClock?startClock.hour:0,
+        minute:startClock?startClock.minute:0
+    };
+
+    if(endClock){
+        endParts={
+            year:secondDate.year,
+            month:secondDate.month,
+            day:secondDate.day,
+            hour:endClock.hour,
+            minute:endClock.minute
+        };
+        if(timestampFromParts(endParts)<=timestampFromParts(startParts)){
+            endParts=addDaysToParts(endParts,1);
+        }
+    } else if(startClock){
+        endParts={
+            year:secondDate.year,
+            month:secondDate.month,
+            day:secondDate.day,
+            hour:startClock.hour+1,
+            minute:startClock.minute
+        };
+        if(endParts.hour>=24){
+            endParts.hour-=24;
+            endParts=addDaysToParts(endParts,1);
+        }
+    } else {
+        endParts={
+            year:secondDate.year,
+            month:secondDate.month,
+            day:secondDate.day,
+            hour:23,
+            minute:59
+        };
+    }
+
+    startTs=timestampFromParts(startParts);
+    endTs=timestampFromParts(endParts);
+
     if(startClock){
-        timeRange=startClock.label;
+        timeLabel=startClock.label;
         if(endClock){
-            timeRange+=" - "+endClock.label;
+            timeLabel+=" - "+endClock.label;
         }
     }
 
     return {
-        start:start,
-        end:end,
-        allDay:!startClock,
-        time:timeRange,
+        startTs:startTs,
+        endTs:endTs,
+        startParts:startParts,
+        endParts:endParts,
+        allDay:allDay,
+        time:timeLabel,
         date:{
-            year:date.year,
-            month:monthName(date.month),
-            day:date.day,
-            weekday:weekdayName(start),
-            label:weekdayName(start)+", "+monthName(date.month)+" "+date.day+", "+date.year
+            year:firstDate.year,
+            month:monthName(firstDate.month),
+            monthNumber:firstDate.month,
+            day:firstDate.day,
+            weekday:weekdayNameFromYmd(firstDate.year,firstDate.month,firstDate.day),
+            label:weekdayNameFromYmd(firstDate.year,firstDate.month,firstDate.day)+", "+monthName(firstDate.month)+" "+firstDate.day+", "+firstDate.year
         }
     };
 }
 
 function parseYesNo(text,label){
-    var match=oneLine(text).match(new RegExp("(?:^|[;|\\n])\\s*"+label+"\\s*:\\s*(yes|no|on|off|true|false)","i"));
+    var expression=new RegExp(label+"\\s*:\\s*(yes|no|on|off|true|false)","i");
+    var match=cleanText(text).match(expression);
     if(!match){
         return null;
     }
     return /yes|on|true/i.test(match[1]);
 }
 
+function parseLabeledValue(text,label){
+    var expression=new RegExp(label+"\\s*:\\s*(.*?)(?=(?:Homepage|Upcoming|Featured|Location)\\s*:|$)","i");
+    var match=cleanText(text).match(expression);
+    return match?oneLine(match[1]):"";
+}
+
 function parsePlacement(text){
     var value=normalized(text);
     var placement={
-        upcoming:false,
         homepage:false,
+        upcoming:false,
         featured:false,
-        standalone:true,
         recognized:false
     };
     var explicit;
 
     if(/\bmajor event\b/.test(value)){
-        placement.upcoming=true;
         placement.homepage=true;
+        placement.upcoming=true;
         placement.featured=true;
-        placement.standalone=false;
         placement.recognized=true;
-    } else if(/\bregular event\b/.test(value)){
+    } else if(/\bregular event\b/.test(value)||/\bupcoming only\b/.test(value)){
         placement.upcoming=true;
-        placement.standalone=false;
-        placement.recognized=true;
-    } else if(/\bupcoming only\b/.test(value)){
-        placement.upcoming=true;
-        placement.standalone=false;
         placement.recognized=true;
     } else if(/\bhomepage only\b/.test(value)){
         placement.homepage=true;
-        placement.standalone=false;
         placement.recognized=true;
     } else if(/\bstandalone\b/.test(value)){
-        placement.recognized=true;
-    }
-
-    explicit=parseYesNo(text,"Upcoming");
-    if(explicit!==null){
-        placement.upcoming=explicit;
         placement.recognized=true;
     }
 
@@ -344,158 +396,133 @@ function parsePlacement(text){
         placement.recognized=true;
     }
 
+    explicit=parseYesNo(text,"Upcoming");
+    if(explicit!==null){
+        placement.upcoming=explicit;
+        placement.recognized=true;
+    }
+
     explicit=parseYesNo(text,"Featured");
     if(explicit!==null){
         placement.featured=explicit;
         placement.recognized=true;
     }
 
-    if(placement.upcoming||placement.homepage||placement.featured){
-        placement.standalone=false;
-    }
-
     return placement;
 }
 
-function parseLabeledValue(text,label){
-    var match=cleanText(text).match(new RegExp("(?:^|\\n|[;|])\\s*"+label+"\\s*:\\s*([^\\n;|]+)","i"));
-    return match?oneLine(match[1]):"";
-}
-
-function parseCategory(text,title){
-    var explicit=normalized(parseLabeledValue(text,"Category"));
-    var combined=normalized((explicit?explicit+" ":"")+title);
-    if(/holiday|rosh hashanah|yom kippur|sukkot|simchat torah|chanukah|hanukkah|purim|passover|pesach|shavuot|lag b.?omer|tisha b.?av|selichot/.test(combined)){
-        return "holidays";
-    }
-    if(/youth|teen|cteen|child|children|kids|family|hebrew school|camp|bar mitzvah|bat mitzvah/.test(combined)){
-        return "youth";
-    }
-    if(/learning|class|torah|talmud|chassidus|kabbalah|lecture|course|parsha|lox|shiur/.test(combined)){
-        return "learning";
-    }
-    return "";
-}
-
-function excludedArea(node){
-    var current=node;
-    var name;
-    while(current&&current!==d.documentElement){
-        name=(String(current.id||"")+" "+String(current.className||"")).toLowerCase();
-        if(/header|footer|menu|nav|breadcrumb|toolbar|quick.?link|site.?map|mobile.?drawer/.test(name)){
-            return true;
+function closestBySelector(node,selector){
+    while(node&&node.nodeType===1){
+        if(node.matches&&node.matches(selector)){
+            return node;
         }
-        current=current.parentNode;
+        node=node.parentNode;
     }
-    return false;
+    return null;
 }
 
-function meaningfulAnchorText(anchor){
-    var text=oneLine(anchor.textContent||anchor.innerText||"");
-    if(!text||/^(read more|more|view|details|learn more)$/i.test(text)){
+function isNavigationAnchor(anchor){
+    return !!closestBySelector(
+        anchor,
+        "#header,.site-nav-wrapper,#co_menu_container,#co_menu_container_wrapper,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb,.mobile-menu-bottom-links,.custom-mobile-menu-links"
+    );
+}
+
+function meaningfulTitle(anchor){
+    var text=oneLine(anchor.innerText||anchor.textContent||"");
+    if(!text||/^(read more|more|view|view event|details|learn more)$/i.test(text)){
         return "";
     }
     return text;
 }
 
-function findItemContainer(anchor){
+function findEventContainer(anchor){
     var node=anchor;
     var depth=0;
     var text;
     var placement;
     var dateInfo;
-    var anchorCount;
+    var anchors;
 
-    while(node&&depth<9){
+    while(node&&depth<10){
         node=node.parentNode;
         depth++;
         if(!node||node.nodeType!==1||/^(BODY|HTML)$/i.test(node.tagName||"")){
             break;
         }
-        if(excludedArea(node)){
+        if(closestBySelector(node,"#header,.site-nav-wrapper,#co_menu_container,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb")){
             return null;
         }
-        text=cleanText(node.textContent||node.innerText||"");
+        text=cleanText(node.innerText||node.textContent||"");
+        if(text.length>3000){
+            continue;
+        }
         placement=parsePlacement(text);
         dateInfo=parseEventDateTime(text);
-        anchorCount=node.getElementsByTagName("a").length;
-        if(
-            dateInfo&&
-            placement.recognized&&
-            anchorCount<=8&&
-            text.length<2500
-        ){
+        anchors=qsa('a[href*="/templates/articlecco_cdo/aid/"]',node);
+        if(placement.recognized&&dateInfo&&anchors.length<=10){
             return node;
         }
     }
     return null;
 }
 
-function chooseImage(container){
-    var images=qsa("img",container);
-    var index;
-    var src;
-    for(index=0;index<images.length;index++){
-        src=images[index].getAttribute("src")||images[index].getAttribute("data-src")||"";
-        if(src&&!/spacer|clear|pixel|arrow|icon_print/i.test(src)){
-            return absoluteUrl(src);
-        }
-    }
-    return "";
-}
-
-function parseIndexEvents(doc){
-    var anchors=qsa('a[href*="/templates/"][href*="/aid/"]',doc);
+function parseIndexEvents(doc,keepContainers){
+    var anchors=qsa('a[href*="/templates/articlecco_cdo/aid/"]',doc);
     var events=[];
-    var byUrl={};
+    var seen={};
     var index;
 
     for(index=0;index<anchors.length;index++){
         var anchor=anchors[index];
-        var title=meaningfulAnchorText(anchor);
-        var href=absoluteUrl(anchor.getAttribute("href"));
-        var path=canonicalUrl(href);
+        var title;
+        var href;
+        var path;
         var container;
-        var fullText;
+        var text;
         var placement;
         var dateInfo;
         var location;
-        var category;
         var eventItem;
 
-        if(!title||!href||byUrl[path]){
-            continue;
-        }
-        if(path.indexOf("/aid/"+CFG.parentAid+"/")>-1){
-            continue;
-        }
-        if(/past-events\.htm$/.test(path)){
+        if(isNavigationAnchor(anchor)){
             continue;
         }
 
-        container=findItemContainer(anchor);
+        title=meaningfulTitle(anchor);
+        href=absoluteUrl(anchor.getAttribute("href")||"");
+        path=canonicalPath(href);
+
+        if(!title||!href||seen[path]){
+            continue;
+        }
+        if(path.indexOf("/aid/"+CFG.parentAid+"/")>-1||/past-events\.htm$/i.test(path)){
+            continue;
+        }
+
+        container=findEventContainer(anchor);
         if(!container){
             continue;
         }
 
-        fullText=cleanText(container.textContent||container.innerText||"");
-        placement=parsePlacement(fullText);
-        dateInfo=parseEventDateTime(fullText);
+        text=cleanText(container.innerText||container.textContent||"");
+        placement=parsePlacement(text);
+        dateInfo=parseEventDateTime(text);
 
         if(!placement.recognized||!dateInfo){
             continue;
         }
 
-        location=parseLabeledValue(fullText,"Location")||CFG.defaultLocation;
-        category=parseCategory(fullText,title);
+        location=parseLabeledValue(text,"Location")||CFG.defaultLocation;
 
         eventItem={
-            id:"page-"+slug(title)+"-"+dateInfo.start.getTime(),
+            id:"page-"+slug(title)+"-"+dateInfo.startTs,
             title:title,
             url:href,
-            image:chooseImage(container),
-            start:dateInfo.start,
-            end:dateInfo.end,
+            startTs:dateInfo.startTs,
+            endTs:dateInfo.endTs,
+            startParts:dateInfo.startParts,
+            endParts:dateInfo.endParts,
             allDay:dateInfo.allDay,
             time:dateInfo.time,
             date:dateInfo.date,
@@ -503,69 +530,121 @@ function parseIndexEvents(doc){
                 text:location,
                 name:location.split(",")[0]||location
             },
-            categories:category?[category]:[],
-            featured:placement.featured,
             homepage:placement.homepage,
             upcoming:placement.upcoming,
-            standalone:placement.standalone,
-            recurring:/\b(recurring|weekly|monthly)\b/i.test(fullText),
-            sourceContainer:container
+            featured:placement.featured,
+            recurring:false,
+            sourceContainer:keepContainers?container:null
         };
 
-        byUrl[path]=eventItem;
+        seen[path]=true;
         events.push(eventItem);
     }
 
     events.sort(function(first,second){
-        return first.start.getTime()-second.start.getTime();
+        return first.startTs-second.startTs;
     });
 
     return events;
 }
 
-function specialLoxEvent(){
-    var reference=new Date();
-    var daysUntilSunday=(7-reference.getDay())%7;
-    var start=new Date(
-        reference.getFullYear(),
-        reference.getMonth(),
-        reference.getDate()+daysUntilSunday,
-        10,0,0,0
-    );
-    if(daysUntilSunday===0&&reference.getTime()>new Date(
-        reference.getFullYear(),
-        reference.getMonth(),
-        reference.getDate(),
-        11,0,0,0
-    ).getTime()){
-        start.setDate(start.getDate()+7);
+function getNewYorkNowParts(){
+    var now=new Date();
+    var parts;
+    var output={};
+    var index;
+
+    try{
+        parts=new Intl.DateTimeFormat("en-US",{
+            timeZone:"America/New_York",
+            year:"numeric",
+            month:"numeric",
+            day:"numeric",
+            hour:"numeric",
+            minute:"numeric",
+            hour12:false
+        }).formatToParts(now);
+
+        for(index=0;index<parts.length;index++){
+            if(parts[index].type!=="literal"){
+                output[parts[index].type]=parseInt(parts[index].value,10);
+            }
+        }
+
+        return {
+            year:output.year,
+            month:output.month,
+            day:output.day,
+            hour:output.hour===24?0:output.hour,
+            minute:output.minute||0
+        };
+    } catch(error){
+        return {
+            year:now.getFullYear(),
+            month:now.getMonth()+1,
+            day:now.getDate(),
+            hour:now.getHours(),
+            minute:now.getMinutes()
+        };
     }
-    var end=new Date(start.getTime()+60*60*1000);
+}
+
+function nextWeekdayParts(weekday,hour,minute){
+    var nowParts=getNewYorkNowParts();
+    var todayUtc=new Date(Date.UTC(nowParts.year,nowParts.month-1,nowParts.day));
+    var todayWeekday=todayUtc.getUTCDay();
+    var add=(weekday-todayWeekday+7)%7;
+    var candidate=addDaysToParts({
+        year:nowParts.year,
+        month:nowParts.month,
+        day:nowParts.day,
+        hour:hour,
+        minute:minute
+    },add);
+
+    if(add===0&&timestampFromParts(candidate)<=timestampFromParts(nowParts)){
+        candidate=addDaysToParts(candidate,7);
+    }
+    return candidate;
+}
+
+function buildLoxEvent(){
+    var startParts;
+    var endParts;
+    var date;
+    if(!CFG.lox.enabled){
+        return null;
+    }
+    startParts=nextWeekdayParts(CFG.lox.weekday,CFG.lox.startHour,CFG.lox.startMinute);
+    endParts=addDaysToParts(startParts,0);
+    endParts.hour=startParts.hour+Math.floor((startParts.minute+CFG.lox.durationMinutes)/60);
+    endParts.minute=(startParts.minute+CFG.lox.durationMinutes)%60;
+    date={
+        year:startParts.year,
+        month:monthName(startParts.month),
+        monthNumber:startParts.month,
+        day:startParts.day,
+        weekday:weekdayNameFromYmd(startParts.year,startParts.month,startParts.day),
+        label:weekdayNameFromYmd(startParts.year,startParts.month,startParts.day)+", "+monthName(startParts.month)+" "+startParts.day+", "+startParts.year
+    };
     return {
-        id:"page-lox-learn-"+start.getTime(),
-        title:"Lox & Learn",
-        url:absoluteUrl("/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm"),
-        image:"",
-        start:start,
-        end:end,
+        id:"page-lox-learn-"+timestampFromParts(startParts),
+        title:CFG.lox.title,
+        url:absoluteUrl(CFG.lox.url),
+        startTs:timestampFromParts(startParts),
+        endTs:timestampFromParts(endParts),
+        startParts:startParts,
+        endParts:endParts,
         allDay:false,
-        time:"10:00 AM - 11:00 AM",
-        date:{
-            year:start.getFullYear(),
-            month:monthName(start.getMonth()+1),
-            day:start.getDate(),
-            weekday:weekdayName(start),
-            label:weekdayName(start)+", "+monthName(start.getMonth()+1)+" "+start.getDate()+", "+start.getFullYear()
-        },
+        time:formatClockParts(startParts)+" - "+formatClockParts(endParts),
+        date:date,
         location:{
             text:CFG.defaultLocation,
             name:"Chabad of Fort Lee"
         },
-        categories:["learning"],
+        homepage:CFG.lox.homepage,
+        upcoming:CFG.lox.upcoming,
         featured:false,
-        homepage:true,
-        upcoming:true,
-        standalone:false,
         recurring:true,
         sourceContainer:null
     };
@@ -573,15 +652,20 @@ function specialLoxEvent(){
 
 function addSpecialEvents(events){
     var output=(events||[]).slice(0);
-    var lox=specialLoxEvent();
-    var exists=output.some(function(eventItem){
-        return canonicalUrl(eventItem.url)===canonicalUrl(lox.url)||normalized(eventItem.title)==="lox & learn";
-    });
-    if(!exists){
-        output.push(lox);
+    var lox=buildLoxEvent();
+    var exists;
+
+    if(lox){
+        exists=output.some(function(eventItem){
+            return canonicalPath(eventItem.url)===canonicalPath(lox.url)||normalized(eventItem.title)==="lox & learn";
+        });
+        if(!exists){
+            output.push(lox);
+        }
     }
+
     output.sort(function(first,second){
-        return first.start.getTime()-second.start.getTime();
+        return first.startTs-second.startTs;
     });
     return output;
 }
@@ -592,29 +676,19 @@ function serializeEvents(events){
             id:eventItem.id,
             title:eventItem.title,
             url:eventItem.url,
-            image:eventItem.image,
-            start:eventItem.start.getTime(),
-            end:eventItem.end.getTime(),
+            startTs:eventItem.startTs,
+            endTs:eventItem.endTs,
+            startParts:eventItem.startParts,
+            endParts:eventItem.endParts,
             allDay:eventItem.allDay,
             time:eventItem.time,
             date:eventItem.date,
             location:eventItem.location,
-            categories:eventItem.categories,
-            featured:eventItem.featured,
             homepage:eventItem.homepage,
             upcoming:eventItem.upcoming,
-            standalone:eventItem.standalone,
+            featured:eventItem.featured,
             recurring:eventItem.recurring
         };
-    });
-}
-
-function hydrateEvents(events){
-    return (events||[]).map(function(eventItem){
-        eventItem.start=new Date(eventItem.start);
-        eventItem.end=new Date(eventItem.end);
-        eventItem.sourceContainer=null;
-        return eventItem;
     });
 }
 
@@ -623,7 +697,7 @@ function readCache(){
         var raw=window.localStorage.getItem(CFG.cacheKey);
         var saved=raw?JSON.parse(raw):null;
         if(saved&&saved.events&&Date.now()-saved.time<CFG.cacheMs){
-            return hydrateEvents(saved.events);
+            return saved.events;
         }
     } catch(error){
     }
@@ -632,79 +706,62 @@ function readCache(){
 
 function writeCache(events){
     try{
-        window.localStorage.setItem(
-            CFG.cacheKey,
-            JSON.stringify({
-                time:Date.now(),
-                events:serializeEvents(events)
-            })
-        );
+        window.localStorage.setItem(CFG.cacheKey,JSON.stringify({
+            time:Date.now(),
+            events:serializeEvents(events)
+        }));
     } catch(error){
     }
 }
 
-function requestSource(){
+function requestSource(callback){
     var url=CFG.sourceUrl+(CFG.sourceUrl.indexOf("?")>-1?"&":"?")+"cfle_page_events="+Date.now();
-    if(window.fetch){
-        return window.fetch(url,{
-            credentials:"same-origin",
-            cache:"no-store",
-            headers:{
-                "Cache-Control":"no-cache, no-store, must-revalidate",
-                "Pragma":"no-cache"
-            }
-        }).then(function(response){
-            if(!response.ok){
-                throw new Error(String(response.status));
-            }
-            return response.text();
-        });
-    }
-    return new Promise(function(resolve,reject){
-        var request=new XMLHttpRequest();
-        request.open("GET",url,true);
-        request.onreadystatechange=function(){
-            if(request.readyState!==4){
-                return;
-            }
-            if(request.status>=200&&request.status<300){
-                resolve(request.responseText);
-            } else {
-                reject(new Error(String(request.status)));
-            }
-        };
-        request.send(null);
-    });
+    var request=new XMLHttpRequest();
+    request.open("GET",url,true);
+    request.onreadystatechange=function(){
+        if(request.readyState!==4){
+            return;
+        }
+        if(request.status>=200&&request.status<300){
+            callback(null,request.responseText);
+        } else {
+            callback(new Error(String(request.status||"Request failed")),"");
+        }
+    };
+    request.send(null);
 }
 
 function parseSourceHtml(html){
-    var doc=new DOMParser().parseFromString(html,"text/html");
-    return parseIndexEvents(doc);
+    var parser=new DOMParser();
+    var doc=parser.parseFromString(html,"text/html");
+    return parseIndexEvents(doc,false);
 }
 
-function now(){
-    return new Date();
+function nowTs(){
+    return Date.now();
 }
 
 function isUpcoming(eventItem){
-    return eventItem.end.getTime()>=now().getTime();
+    return eventItem.endTs>=nowTs();
 }
 
 function isPast(eventItem){
-    return eventItem.end.getTime()<now().getTime();
+    return eventItem.endTs<nowTs();
 }
 
-function activeEvents(){
+function activeUpcomingEvents(){
     return state.events.filter(function(eventItem){
-        return eventItem.upcoming&&!eventItem.standalone&&isUpcoming(eventItem);
+        return eventItem.upcoming&&isUpcoming(eventItem);
     });
 }
 
 function pastEvents(){
     return state.events.filter(function(eventItem){
-        return eventItem.upcoming&&!eventItem.standalone&&isPast(eventItem);
+        return !eventItem.recurring&&
+            (eventItem.upcoming||eventItem.homepage||eventItem.featured)&&
+            isPast(eventItem);
     }).sort(function(first,second){
-        return second.start.getTime()-first.start.getTime();
+        return second.startTs-first.startTs;
     });
 }
 
@@ -724,18 +781,27 @@ function mapsUrl(location){
     return "https://www.google.com/maps/search/?api=1&query="+encoded;
 }
 
-function calendarStamp(date){
-    return date.getFullYear()+
-        pad(date.getMonth()+1)+
-        pad(date.getDate())+"T"+
-        pad(date.getHours())+
-        pad(date.getMinutes())+"00";
+function compactParts(parts){
+    return parts.year+pad(parts.month)+pad(parts.day)+"T"+pad(parts.hour||0)+pad(parts.minute||0)+"00";
+}
+
+function allDayCompact(parts){
+    return parts.year+pad(parts.month)+pad(parts.day);
 }
 
 function googleCalendarUrl(eventItem){
+    var dates;
+    var endAllDay;
+    if(eventItem.allDay){
+        endAllDay=addDaysToParts(eventItem.endParts,1);
+        dates=allDayCompact(eventItem.startParts)+"/"+allDayCompact(endAllDay);
+    } else {
+        dates=compactParts(eventItem.startParts)+"/"+compactParts(eventItem.endParts);
+    }
     return "https://calendar.google.com/calendar/render?action=TEMPLATE"+
         "&text="+encodeURIComponent(eventItem.title)+
-        "&dates="+encodeURIComponent(calendarStamp(eventItem.start)+"/"+calendarStamp(eventItem.end))+
+        "&dates="+encodeURIComponent(dates)+
+        "&ctz="+encodeURIComponent("America/New_York")+
         "&location="+encodeURIComponent(eventItem.location.text||"")+
         "&details="+encodeURIComponent("More information: "+eventItem.url);
 }
@@ -749,460 +815,169 @@ function escapeIcs(value){
 }
 
 function icsText(eventItem){
+    var startLine;
+    var endLine;
+    var endAllDay;
+
+    if(eventItem.allDay){
+        endAllDay=addDaysToParts(eventItem.endParts,1);
+        startLine="DTSTART;VALUE=DATE:"+allDayCompact(eventItem.startParts);
+        endLine="DTEND;VALUE=DATE:"+allDayCompact(endAllDay);
+    } else {
+        startLine="DTSTART;TZID=America/New_York:"+compactParts(eventItem.startParts);
+        endLine="DTEND;TZID=America/New_York:"+compactParts(eventItem.endParts);
+    }
+
     return "BEGIN:VCALENDAR\r\n"+
         "VERSION:2.0\r\n"+
         "PRODID:-//Chabad of Fort Lee//Page Events//EN\r\n"+
+        "CALSCALE:GREGORIAN\r\n"+
+        "METHOD:PUBLISH\r\n"+
         "BEGIN:VEVENT\r\n"+
         "UID:"+escapeIcs(eventItem.id)+"@chabadfortlee.com\r\n"+
-        "DTSTART:"+calendarStamp(eventItem.start)+"\r\n"+
-        "DTEND:"+calendarStamp(eventItem.end)+"\r\n"+
+        startLine+"\r\n"+
+        endLine+"\r\n"+
         "SUMMARY:"+escapeIcs(eventItem.title)+"\r\n"+
         "LOCATION:"+escapeIcs(eventItem.location.text||"")+"\r\n"+
         "DESCRIPTION:"+escapeIcs("More information: "+eventItem.url)+"\r\n"+
         "URL:"+escapeIcs(eventItem.url)+"\r\n"+
         "END:VEVENT\r\n"+
-        "END:VCALENDAR";
+        "END:VCALENDAR\r\n";
 }
 
 function downloadIcs(eventItem){
-    var blob=new Blob([icsText(eventItem)],{type:"text/calendar;charset=utf-8"});
-    var url=URL.createObjectURL(blob);
-    var anchor=d.createElement("a");
-    anchor.href=url;
-    anchor.download=slug(eventItem.title||"event")+".ics";
-    d.body.appendChild(anchor);
-    anchor.click();
-    d.body.removeChild(anchor);
-    window.setTimeout(function(){
-        URL.revokeObjectURL(url);
-    },1500);
+    var blob;
+    var url;
+    var link;
+    try{
+        blob=new Blob([icsText(eventItem)],{type:"text/calendar;charset=utf-8"});
+        url=window.URL.createObjectURL(blob);
+        link=d.createElement("a");
+        link.href=url;
+        link.download=slug(eventItem.title||"event")+".ics";
+        d.body.appendChild(link);
+        link.click();
+        d.body.removeChild(link);
+        window.setTimeout(function(){
+            window.URL.revokeObjectURL(url);
+        },500);
+    } catch(error){
+        window.location.href="data:text/calendar;charset=utf-8,"+encodeURIComponent(icsText(eventItem));
+    }
+}
+
+function formatClockParts(parts){
+    var hour=parts.hour||0;
+    var suffix=hour>=12?"PM":"AM";
+    var display=hour%12;
+    if(display===0){
+        display=12;
+    }
+    return display+":"+pad(parts.minute||0)+" "+suffix;
+}
+
+function homeDateLabel(eventItem){
+    var output=eventItem.date.weekday+", "+eventItem.date.month+" "+eventItem.date.day;
+    if(eventItem.time){
+        output+=" • "+eventItem.time;
+    }
+    return output;
 }
 
 function clockIcon(){
-    return '<span class="cfle-meta-icon" aria-hidden="true">'+
-        '<svg viewBox="0 0 24 24" focusable="false">'+
-        '<circle cx="12" cy="12" r="8.6"></circle>'+
-        '<path d="M12 7.2v5.1l3.5 2.1"></path>'+
-        '</svg></span>';
+    return '<svg class="cfle-meta-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="2"></circle>'+
+        '<path d="M12 7.4v5.1l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>'+
+        '</svg>';
 }
 
 function locationIcon(){
-    return '<span class="cfle-location-icon" aria-hidden="true">'+
-        '<svg viewBox="0 0 24 28" focusable="false">'+
-        '<path d="M12 1.7c-5.55 0-10.05 4.42-10.05 9.87 0 7.2 10.05 14.72 10.05 14.72s10.05-7.52 10.05-14.72C22.05 6.12 17.55 1.7 12 1.7z"></path>'+
-        '<circle cx="12" cy="11.5" r="3.7"></circle>'+
-        '</svg></span>';
+    return '<svg class="cfle-meta-svg cfle-pin-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<path d="M12 2.8a7 7 0 0 0-7 7c0 5.15 7 11.4 7 11.4s7-6.25 7-11.4a7 7 0 0 0-7-7z" fill="currentColor"></path>'+
+        '<circle cx="12" cy="9.8" r="2.45" fill="#fff"></circle>'+
+        '</svg>';
 }
 
 function googleIcon(){
-    return '<span class="cfle-google-logo" aria-hidden="true">'+
-        '<svg viewBox="0 0 24 24" focusable="false">'+
-        '<path fill="#4285F4" d="M21.6 12.23c0-.76-.07-1.49-.2-2.19H12v4.15h5.37a4.59 4.59 0 0 1-1.99 3.01v2.69h3.23c1.89-1.74 2.99-4.31 2.99-7.66z"></path>'+
-        '<path fill="#34A853" d="M12 22c2.7 0 4.96-.89 6.61-2.42l-3.23-2.69c-.89.6-2.04.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.05v2.78A9.99 9.99 0 0 0 12 22z"></path>'+
-        '<path fill="#FBBC05" d="M6.39 13.72A6.02 6.02 0 0 1 6.08 12c0-.6.1-1.18.31-1.72V7.5H3.05A9.99 9.99 0 0 0 2 12c0 1.61.38 3.14 1.05 4.5l3.34-2.78z"></path>'+
-        '<path fill="#EA4335" d="M12 6.15c1.47 0 2.79.51 3.83 1.5l2.87-2.87C16.96 3.16 14.7 2 12 2a9.99 9.99 0 0 0-8.95 5.5l3.34 2.78C7.18 7.91 9.39 6.15 12 6.15z"></path>'+
-        '</svg></span>';
+    return '<svg class="cfle-calendar-logo cfle-google-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.23-.2-1.77H12v3.4h5.52c-.11.84-.71 2.11-2.04 2.96l-.02.11 2.96 2.29.2.02c1.84-1.69 2.98-4.18 2.98-7.01z"></path>'+
+        '<path fill="#34A853" d="M12 22c2.69 0 4.95-.89 6.6-2.43l-3.14-2.42c-.84.56-1.96.96-3.46.96-2.63 0-4.87-1.78-5.67-4.24l-.1.01-3.08 2.38-.04.1A9.98 9.98 0 0 0 12 22z"></path>'+
+        '<path fill="#FBBC05" d="M6.33 13.87A6 6 0 0 1 6 12c0-.65.11-1.28.32-1.87l-.01-.13-3.12-2.42-.1.05A10 10 0 0 0 2 12c0 1.57.36 3.05 1.1 4.37l3.23-2.5z"></path>'+
+        '<path fill="#EA4335" d="M12 5.89c1.88 0 3.15.81 3.88 1.49l2.79-2.72C16.96 3.07 14.69 2 12 2a9.98 9.98 0 0 0-8.9 5.63l3.22 2.5C7.13 7.67 9.37 5.89 12 5.89z"></path>'+
+        '</svg>';
 }
 
 function appleIcon(){
-    return '<span class="cfle-apple-logo" aria-hidden="true">'+
-        '<svg viewBox="0 0 24 24" focusable="false">'+
-        '<path fill="currentColor" d="M16.8 12.8c.03-2.45 2-3.63 2.09-3.69-1.14-1.67-2.92-1.9-3.55-1.93-1.5-.16-2.95.9-3.71.9-.78 0-1.95-.88-3.21-.85-1.63.03-3.16.97-4 2.44-1.73 3-.44 7.4 1.22 9.83.83 1.19 1.8 2.51 3.08 2.46 1.25-.05 1.72-.79 3.23-.79 1.5 0 1.94.79 3.24.76 1.35-.02 2.2-1.19 3-2.39.96-1.36 1.34-2.7 1.35-2.77-.03-.01-2.57-.99-2.54-3.97zM14.36 5.6c.67-.84 1.13-1.98 1-3.12-.98.04-2.21.68-2.91 1.5-.62.72-1.17 1.9-1.02 3 .99.08 2.23-.57 2.93-1.38z"></path>'+
-        '</svg></span>';
+    return '<svg class="cfle-calendar-logo cfle-apple-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<path fill="currentColor" d="M17.05 12.54c-.03-2.67 2.18-3.95 2.28-4.01-1.25-1.83-3.2-2.08-3.89-2.1-1.64-.17-3.23.98-4.07.98-.86 0-2.15-.96-3.55-.93-1.8.03-3.49 1.07-4.42 2.68-1.89 3.28-.48 8.1 1.33 10.75.91 1.3 1.96 2.76 3.36 2.71 1.37-.06 1.88-.87 3.54-.87 1.64 0 2.12.87 3.55.84 1.47-.02 2.4-1.31 3.28-2.62 1.05-1.49 1.47-2.95 1.49-3.03-.04-.01-2.87-1.09-2.9-4.4z"></path>'+
+        '<path fill="currentColor" d="M14.37 4.69c.74-.93 1.25-2.2 1.11-3.47-1.08.05-2.43.75-3.2 1.66-.68.8-1.29 2.12-1.13 3.34 1.22.09 2.45-.61 3.22-1.53z"></path>'+
+        '</svg>';
 }
 
 function calendarIcon(){
-    return '<span class="cfle-action-icon" aria-hidden="true">'+
-        '<svg viewBox="0 0 24 24" focusable="false">'+
-        '<rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect>'+
-        '<path d="M7 3v4M17 3v4M3 9h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>'+
-        '<path d="M7.3 13h3M13.7 13h3M7.3 17h3M13.7 17h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>'+
-        '</svg></span>';
+    return '<svg class="cfle-calendar-logo cfle-generic-calendar-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<rect x="3.5" y="5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"></rect>'+
+        '<path d="M7.5 3v4M16.5 3v4M3.5 9h17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>'+
+        '<path d="M8 13h3v3H8zM13 13h3v3h-3z" fill="currentColor"></path>'+
+        '</svg>';
 }
 
-function buildTag(key,text){
-    var className="cfle-tag";
-    if(key==="featured"){
-        className+=" cfle-tag--featured";
-    }
-    if(key==="holidays"){
-        className+=" cfle-tag--holiday";
-    }
-    if(key==="youth"){
-        className+=" cfle-tag--youth";
-    }
-    if(key==="learning"){
-        className+=" cfle-tag--learning";
-    }
-    return '<span class="'+className+'">'+escapeHtml(text)+'</span>';
-}
-
-function eventTags(eventItem,spotlight){
-    var output=[];
-    if(spotlight||eventItem.featured){
-        output.push(buildTag("featured","Featured"));
-    }
-    if(eventItem.categories.indexOf("holidays")>-1){
-        output.push(buildTag("holidays","Holiday"));
-    }
-    if(eventItem.categories.indexOf("youth")>-1){
-        output.push(buildTag("youth","Youth"));
-    }
-    if(eventItem.categories.indexOf("learning")>-1){
-        output.push(buildTag("learning","Classes & Learning"));
-    }
-    return output.join("");
+function featuredTag(){
+    return '<span class="cfle-tag cfle-tag--featured">Featured</span>';
 }
 
 function renderMeta(eventItem){
     var parts=[];
     if(eventItem.time){
-        parts.push(
-            '<span class="cfle-meta-item">'+
-            clockIcon()+
-            '<span>'+escapeHtml(eventItem.time)+'</span></span>'
-        );
+        parts.push('<span class="cfle-meta-item">'+clockIcon()+'<span>'+escapeHtml(eventItem.time)+'</span></span>');
     }
     if(eventItem.location&&eventItem.location.text){
-        parts.push(
-            '<a class="cfle-meta-item cfle-location" href="'+
-            escapeHtml(mapsUrl(eventItem.location))+
-            '" target="_blank" rel="noopener noreferrer">'+
-            locationIcon()+
-            '<span class="cfle-nowrap">'+
-            escapeHtml(eventItem.location.name||eventItem.location.text)+
-            '</span></a>'
-        );
+        parts.push('<a class="cfle-meta-item cfle-location" href="'+escapeHtml(mapsUrl(eventItem.location))+'" target="_blank" rel="noopener">'+
+            locationIcon()+'<span>'+escapeHtml(eventItem.location.name||eventItem.location.text)+'</span></a>');
     }
-    return '<div class="cfle-meta">'+
-        parts.join('<span class="cfle-meta-separator">|</span>')+
-        '</div>';
+    return '<div class="cfle-meta">'+parts.join('<span class="cfle-meta-divider" aria-hidden="true">|</span>')+'</div>';
 }
 
 function calendarButtonsHtml(eventItem){
-    var googleButton=
-        '<button type="button" class="cfle-action-btn cfle-calendar-google" data-cal="google" data-id="'+escapeHtml(eventItem.id)+'">'+
-        googleIcon()+'<span>Add to Calendar</span></button>';
-    var secondaryButton;
+    var google='<a class="cfle-action cfle-calendar-action" href="'+escapeHtml(googleCalendarUrl(eventItem))+'" target="_blank" rel="noopener">'+googleIcon()+'<span>Add to Calendar</span></a>';
+    var other='<button class="cfle-action cfle-calendar-action cfle-ics-action" type="button" data-event-id="'+escapeHtml(eventItem.id)+'">'+calendarIcon()+'<span>Other Calendar</span></button>';
+    var apple='<button class="cfle-action cfle-calendar-action cfle-ics-action" type="button" data-event-id="'+escapeHtml(eventItem.id)+'">'+appleIcon()+'<span>Add to Calendar</span></button>';
+
     if(isAppleDevice()){
-        secondaryButton=
-            '<button type="button" class="cfle-action-btn cfle-calendar-apple" data-cal="ics" data-id="'+escapeHtml(eventItem.id)+'">'+
-            appleIcon()+'<span>Add to Calendar</span></button>';
-        return '<div class="cfle-calendar-buttons">'+secondaryButton+googleButton+'</div>';
+        return apple+google;
     }
-    secondaryButton=
-        '<button type="button" class="cfle-action-btn cfle-calendar-other" data-cal="ics" data-id="'+escapeHtml(eventItem.id)+'">'+
-        calendarIcon()+'<span>Other Calendar</span></button>';
-    return '<div class="cfle-calendar-buttons">'+googleButton+secondaryButton+'</div>';
+    return google+other;
 }
 
-function cardHtml(eventItem,spotlight,past){
+function cardHtml(eventItem,featured,past){
     var date=eventItem.date||{};
-    var actions=past?
-        '<div class="cfle-actions"><a class="cfle-detail-btn" href="'+escapeHtml(eventItem.url)+'">View Event</a></div>':
-        '<div class="cfle-actions">'+calendarButtonsHtml(eventItem)+
-        '<a class="cfle-detail-btn" href="'+escapeHtml(eventItem.url)+'">View Details</a></div>';
+    var actions;
+    var className="cfle-card"+(featured?" cfle-card--featured":"");
 
-    return '<article class="cfle-card'+(spotlight?' cfle-card--spotlight':'')+' no-desc">'+
+    if(past){
+        actions='<div class="cfle-event-actions cfle-event-actions--past">'+
+            '<a class="cfle-action cfle-view-action" href="'+escapeHtml(eventItem.url)+'">View Event</a>'+
+            '</div>';
+    } else {
+        actions='<div class="cfle-event-actions">'+
+            calendarButtonsHtml(eventItem)+
+            '<a class="cfle-action cfle-view-action" href="'+escapeHtml(eventItem.url)+'">View Details</a>'+
+            '</div>';
+    }
+
+    return '<article class="'+className+'">'+
         '<div class="cfle-date">'+
-        '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
-        '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
-        '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
+            '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
+            '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
+            '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
         '</div>'+
-        '<div class="cfle-body">'+
-        '<a class="cfle-title" href="'+escapeHtml(eventItem.url)+'">'+escapeHtml(eventItem.title)+'</a>'+
-        '<div class="cfle-tags">'+eventTags(eventItem,spotlight)+'</div>'+
-        renderMeta(eventItem)+
-        '</div>'+actions+'</article>';
-}
-
-function labelForFilter(key){
-    return {
-        all:"All",
-        featured:"Featured",
-        holidays:"Holidays",
-        youth:"Youth",
-        learning:"Classes & Learning"
-    }[key]||"All";
-}
-
-function rangeMatches(eventItem){
-    var reference=now();
-    var start;
-    var end;
-    if(state.range==="thisweek"){
-        start=new Date(reference.getFullYear(),reference.getMonth(),reference.getDate());
-        end=new Date(start.getTime());
-        end.setDate(start.getDate()+7);
-        return eventItem.start>=start&&eventItem.start<end;
-    }
-    if(state.range==="thismonth"){
-        start=new Date(reference.getFullYear(),reference.getMonth(),1);
-        end=new Date(reference.getFullYear(),reference.getMonth()+1,1);
-        return eventItem.start>=start&&eventItem.start<end;
-    }
-    return true;
-}
-
-function visibleSpotlights(){
-    return activeEvents().filter(function(eventItem){
-        return eventItem.featured;
-    });
-}
-
-function visibleMainEvents(){
-    var query=normalized(state.search);
-    return activeEvents().filter(function(eventItem){
-        var categoryMatch;
-        var haystack;
-        if(eventItem.featured){
-            return false;
-        }
-        categoryMatch=
-            state.active==="all"||
-            (state.active==="featured"&&eventItem.featured)||
-            eventItem.categories.indexOf(state.active)>-1;
-        if(!categoryMatch||!rangeMatches(eventItem)){
-            return false;
-        }
-        if(state.cadence==="onetime"&&eventItem.recurring){
-            return false;
-        }
-        if(state.cadence==="recurring"&&!eventItem.recurring){
-            return false;
-        }
-        if(!query){
-            return true;
-        }
-        haystack=normalized([
-            eventItem.title,
-            eventItem.time,
-            eventItem.location.text,
-            eventItem.categories.join(" "),
-            eventItem.date.label
-        ].join(" "));
-        return haystack.indexOf(query)>-1;
-    });
-}
-
-function ensureRenderContainers(){
-    var mount=qs("#cfle-events");
-    var spotlight=qs("#cfle-spotlight-section");
-    var main=qs("#cfle-main-section");
-    if(!mount){
-        return null;
-    }
-    if(!spotlight){
-        spotlight=d.createElement("div");
-        spotlight.id="cfle-spotlight-section";
-        spotlight.className="cfle-section";
-        mount.appendChild(spotlight);
-    }
-    if(!main){
-        main=d.createElement("div");
-        main.id="cfle-main-section";
-        main.className="cfle-section";
-        mount.appendChild(main);
-    }
-    return {mount:mount,spotlight:spotlight,main:main};
-}
-
-function renderUpcoming(){
-    var containers=ensureRenderContainers();
-    var spotlightEvents;
-    var mainEvents;
-    var count;
-    var html;
-    if(!containers){
-        return;
-    }
-    spotlightEvents=visibleSpotlights();
-    mainEvents=visibleMainEvents();
-    count=qs("#cfle-count");
-    if(count){
-        count.innerHTML='<strong>'+(spotlightEvents.length+mainEvents.length)+'</strong> upcoming programs';
-    }
-    if(spotlightEvents.length){
-        html='<h2 class="cfle-section-title"><span class="cfle-star">&#9733;</span> Featured</h2>'+
-            '<div class="cfle-spot-grid count-'+Math.min(spotlightEvents.length,4)+'">'+
-            spotlightEvents.map(function(eventItem){
-                return cardHtml(eventItem,true,false);
-            }).join("")+'</div>';
-        containers.spotlight.innerHTML=html;
-    } else {
-        containers.spotlight.innerHTML="";
-    }
-    html='<h2 class="cfle-section-title">'+escapeHtml(labelForFilter(state.active))+' <small>now showing</small></h2>';
-    if(mainEvents.length){
-        html+='<div class="cfle-list">'+mainEvents.map(function(eventItem){
-            return cardHtml(eventItem,false,false);
-        }).join("")+'</div>';
-    } else {
-        html+='<div class="cfle-empty"><strong>No upcoming events are listed yet.</strong><span>Please check back soon.</span></div>';
-    }
-    containers.main.innerHTML=html;
-}
-
-function renderPast(){
-    var mount=qs("#cfle-past-events");
-    var events=pastEvents();
-    if(!mount){
-        return;
-    }
-    mount.className="cfle-past-events-wrap";
-    if(!events.length){
-        mount.innerHTML='<div class="cfle-empty"><strong>No past events are listed yet.</strong></div>';
-        return;
-    }
-    mount.innerHTML='<div class="cfle-list cfle-past-list">'+events.map(function(eventItem){
-        return cardHtml(eventItem,false,true);
-    }).join("")+'</div>';
-}
-
-function findHomepageModule(){
-    var markerCandidates=qsa(".chabad_updates,.message_format,.bottom_padding,div,p,span");
-    var anchors=qsa("a");
-    var index;
-    var text;
-    var node;
-    var depth;
-
-    for(index=0;index<markerCandidates.length;index++){
-        text=normalized(markerCandidates[index].textContent||markerCandidates[index].innerText||"");
-        if(text!=="cfle_page_events"){
-            continue;
-        }
-        node=markerCandidates[index];
-        while(node&&node!==d.body){
-            if((" "+String(node.className||"")+" ").indexOf(" chabad_updates ")>-1){
-                return node;
-            }
-            node=node.parentNode;
-        }
-        return markerCandidates[index].parentNode||markerCandidates[index];
-    }
-
-    for(index=0;index<anchors.length;index++){
-        text=normalized(anchors[index].textContent||anchors[index].innerText||"");
-        if(text!=="view more upcoming events"&&text!=="view more"&&text!=="view all upcoming events"){
-            continue;
-        }
-        if(excludedArea(anchors[index])){
-            continue;
-        }
-        node=anchors[index];
-        depth=0;
-        while(node&&depth<7){
-            node=node.parentNode;
-            depth++;
-            if(!node||node===d.body){
-                break;
-            }
-            text=normalized(node.textContent||node.innerText||"");
-            if(text.indexOf("upcoming at chabad")>-1&&node.getElementsByTagName("a").length<=15){
-                return node;
-            }
-        }
-    }
-    return null;
-}
-
-function renderHomepage(){
-    var module;
-    var events;
-    var html;
-    if(!d.body||String(d.body.className||"").indexOf("home")===-1){
-        return;
-    }
-    module=findHomepageModule();
-    if(!module){
-        return;
-    }
-    events=activeEvents().filter(function(eventItem){
-        return eventItem.homepage;
-    }).slice(0,CFG.homepageLimit);
-    html='<div class="cfle-home-events">'+
-        '<h5 class="cfle-home-events-title">Upcoming at Chabad</h5>';
-    if(events.length){
-        html+='<div class="cfle-home-events-list">'+events.map(function(eventItem){
-            return '<a class="cfle-home-event" href="'+escapeHtml(eventItem.url)+'">'+
-                '<span class="cfle-home-event-date">'+escapeHtml(eventItem.date.label+(eventItem.time?' &bull; '+eventItem.time:''))+'</span>'+
-                '<strong>'+escapeHtml(eventItem.title)+'</strong></a>';
-        }).join("")+'</div>';
-    } else {
-        html+='<p class="cfle-home-events-empty">More programs are coming soon.</p>';
-    }
-    html+='<a class="cfle-home-view-more" href="'+escapeHtml(CFG.upcomingUrl)+'">View More</a></div>';
-    module.innerHTML=html;
-    module.className+=(module.className?" ":"")+"cfle-home-events-module";
-}
-
-function hideExpiredDropdownLinks(){
-    var expired={};
-    var anchors;
-    var index;
-    var path;
-    var node;
-    state.events.forEach(function(eventItem){
-        if(isPast(eventItem)){
-            expired[canonicalUrl(eventItem.url)]=true;
-        }
-    });
-    anchors=qsa('.site-nav-wrapper a[href],#co_menu_container a[href],#header a[href]');
-    for(index=0;index<anchors.length;index++){
-        path=canonicalUrl(anchors[index].href);
-        if(!expired[path]){
-            continue;
-        }
-        node=anchors[index];
-        while(node&&node.parentNode&&node.parentNode!==d.body){
-            if(/co_menu_item|item|menu-item/i.test(String(node.className||""))){
-                break;
-            }
-            node=node.parentNode;
-        }
-        if(node&&node.style){
-            node.style.display="none";
-            node.setAttribute("data-cfle-expired-event","true");
-        } else {
-            anchors[index].style.display="none";
-        }
-    }
-}
-
-function hideNativeIndexSources(events){
-    var seen=[];
-    var hiddenRoots=[];
-    events.forEach(function(eventItem){
-        var container=eventItem.sourceContainer;
-        var current=container;
-        var depth=0;
-        var name;
-        var root=null;
-
-        while(current&&depth<6){
-            name=(String(current.id||"")+" "+String(current.className||"")).toLowerCase();
-            if(/(^|[ _-])index([ _-]|$)|article[_ -]?index|index[_ -]?(list|container|wrapper)/.test(name)){
-                root=current;
-                break;
-            }
-            current=current.parentNode;
-            depth++;
-        }
-
-        if(root&&hiddenRoots.indexOf(root)===-1){
-            hiddenRoots.push(root);
-            root.className+=(root.className?" ":"")+"cfle-native-index-source";
-            root.style.display="none";
-            return;
-        }
-
-        if(container&&seen.indexOf(container)===-1){
-            seen.push(container);
-            container.className+=(container.className?" ":"")+"cfle-native-index-source";
-            container.style.display="none";
-        }
-    });
+        '<div class="cfle-card-body">'+
+            '<h3 class="cfle-event-title"><a href="'+escapeHtml(eventItem.url)+'">'+escapeHtml(eventItem.title)+'</a></h3>'+
+            (featured?'<div class="cfle-tags">'+featuredTag()+'</div>':'')+
+            renderMeta(eventItem)+
+        '</div>'+
+        actions+
+    '</article>';
 }
 
 function findEventById(id){
@@ -1215,174 +990,357 @@ function findEventById(id){
     return null;
 }
 
-function closestControl(node,root){
-    while(node&&node!==root){
-        if(node.nodeType===1&&/^(A|BUTTON)$/i.test(node.tagName||"")){
-            return node;
+function bindCalendarButtons(root){
+    qsa(".cfle-ics-action",root||d).forEach(function(button){
+        if(button.getAttribute("data-cfle-bound")==="1"){
+            return;
         }
-        node=node.parentNode;
+        button.setAttribute("data-cfle-bound","1");
+        button.addEventListener("click",function(){
+            var eventItem=findEventById(button.getAttribute("data-event-id"));
+            if(eventItem){
+                downloadIcs(eventItem);
+            }
+        });
+    });
+}
+
+function eventMatchesRange(eventItem){
+    var nowParts=getNewYorkNowParts();
+    var currentKey=dateKey(nowParts);
+    var eventKey=dateKey(eventItem.startParts);
+    var todayDate;
+    var startOfWeek;
+    var endOfWeek;
+
+    if(state.range==="all"){
+        return true;
+    }
+    if(state.range==="thismonth"){
+        return eventItem.startParts.year===nowParts.year&&eventItem.startParts.month===nowParts.month;
+    }
+    if(state.range==="thisweek"){
+        todayDate=new Date(Date.UTC(nowParts.year,nowParts.month-1,nowParts.day));
+        startOfWeek=addDaysToParts(nowParts,-todayDate.getUTCDay());
+        endOfWeek=addDaysToParts(startOfWeek,6);
+        return eventKey>=dateKey(startOfWeek)&&eventKey<=dateKey(endOfWeek)&&eventKey>=currentKey;
+    }
+    return true;
+}
+
+function filteredUpcomingEvents(){
+    var search=normalized(state.search);
+    return activeUpcomingEvents().filter(function(eventItem){
+        var haystack=normalized(eventItem.title+" "+(eventItem.location?eventItem.location.text:""));
+        return (!search||haystack.indexOf(search)>-1)&&eventMatchesRange(eventItem);
+    });
+}
+
+function renderUpcoming(){
+    var root=qs("#cfle-events");
+    var featuredSection;
+    var mainSection;
+    var count;
+    var events;
+    var featured=[];
+    var regular=[];
+
+    if(!root){
+        return;
+    }
+
+    featuredSection=qs("#cfle-featured-section",root);
+    mainSection=qs("#cfle-main-section",root);
+    count=qs("#cfle-count",root);
+    events=filteredUpcomingEvents();
+
+    events.forEach(function(eventItem){
+        if(eventItem.featured){
+            featured.push(eventItem);
+        } else {
+            regular.push(eventItem);
+        }
+    });
+
+    if(count){
+        count.innerHTML='<strong>'+events.length+'</strong> '+(events.length===1?'program':'programs');
+    }
+
+    if(featuredSection){
+        featuredSection.innerHTML=featured.length?
+            '<h2 class="cfle-section-title">Featured</h2><div class="cfle-grid cfle-grid--featured">'+
+            featured.map(function(eventItem){ return cardHtml(eventItem,true,false); }).join("")+
+            '</div>':"";
+    }
+
+    if(mainSection){
+        if(regular.length){
+            mainSection.innerHTML='<h2 class="cfle-section-title">Upcoming Programs</h2><div class="cfle-grid">'+
+                regular.map(function(eventItem){ return cardHtml(eventItem,false,false); }).join("")+
+                '</div>';
+        } else if(!featured.length){
+            mainSection.innerHTML='<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
+        } else {
+            mainSection.innerHTML="";
+        }
+    }
+
+    bindCalendarButtons(root);
+}
+
+function bindUpcomingUi(){
+    var root=qs("#cfle-events");
+    var search;
+    var toggle;
+    var panel;
+
+    if(!root||state.bound){
+        return;
+    }
+    state.bound=true;
+
+    search=qs("#cfle-search",root);
+    toggle=qs("#cfle-filter-toggle",root);
+    panel=qs("#cfle-date-panel",root);
+
+    if(search){
+        search.addEventListener("input",function(){
+            state.search=search.value||"";
+            renderUpcoming();
+        });
+    }
+
+    if(toggle&&panel){
+        toggle.addEventListener("click",function(){
+            var open=panel.className.indexOf(" open")>-1;
+            panel.className=open?panel.className.replace(/\s*open/g,""):panel.className+" open";
+            toggle.setAttribute("aria-expanded",open?"false":"true");
+        });
+    }
+
+    qsa(".cfle-chip-btn[data-range]",root).forEach(function(button){
+        button.addEventListener("click",function(){
+            qsa(".cfle-chip-btn[data-range]",root).forEach(function(other){
+                other.className=other.className.replace(/\s*active/g,"");
+            });
+            button.className+=" active";
+            state.range=button.getAttribute("data-range")||"all";
+            renderUpcoming();
+        });
+    });
+}
+
+function findPendingHomepageMarkerWidget(){
+    var widgets=qsa(".chabad_updates");
+    var index;
+    var text;
+    for(index=0;index<widgets.length;index++){
+        text=oneLine(widgets[index].innerText||widgets[index].textContent||"");
+        if(text.indexOf("CFLE_PAGE_EVENTS")>-1){
+            return widgets[index];
+        }
     }
     return null;
 }
 
-function setActiveFilter(key){
-    state.active=key;
-    qsa(".cfle-filter-btn").forEach(function(button){
-        button.className="cfle-filter-btn"+(button.getAttribute("data-filter")===key?" active":"");
-    });
-    renderUpcoming();
+function findHomepageMarkerWidget(){
+    return qs(".chabad_updates.cfle-home-events-widget")||findPendingHomepageMarkerWidget();
 }
 
-function setChipState(){
-    qsa(".cfle-chip-btn").forEach(function(button){
-        var group=button.getAttribute("data-group");
-        var value=button.getAttribute("data-value");
-        var active=(group==="range"&&state.range===value)||(group==="cadence"&&state.cadence===value);
-        button.className="cfle-chip-btn"+(active?" active":"");
-    });
-}
+function renderHomepage(){
+    var widget=findHomepageMarkerWidget();
+    var events;
+    var rows;
 
-function bindUi(){
-    var mount=qs("#cfle-events");
-    var search=qs("#cfle-search");
-    if(!mount||state.uiBound){
+    if(!widget){
         return;
     }
-    state.uiBound=true;
-    mount.addEventListener("click",function(event){
-        var control=closestControl(event.target,mount);
-        var eventItem;
-        var panel;
-        if(!control){
-            return;
-        }
-        if(control.className.indexOf("cfle-filter-btn")>-1){
-            event.preventDefault();
-            setActiveFilter(control.getAttribute("data-filter"));
-            return;
-        }
-        if(control.id==="cfle-more-toggle"){
-            event.preventDefault();
-            panel=qs("#cfle-more-panel");
-            if(panel){
-                panel.className=panel.className.indexOf("open")>-1?"cfle-more-panel":"cfle-more-panel open";
-            }
-            return;
-        }
-        if(control.className.indexOf("cfle-chip-btn")>-1){
-            event.preventDefault();
-            if(control.getAttribute("data-group")==="range"){
-                state.range=control.getAttribute("data-value");
-            }
-            if(control.getAttribute("data-group")==="cadence"){
-                state.cadence=control.getAttribute("data-value");
-            }
-            setChipState();
-            renderUpcoming();
-            return;
-        }
-        if(control.className.indexOf("cfle-action-btn")>-1){
-            event.preventDefault();
-            eventItem=findEventById(control.getAttribute("data-id"));
-            if(!eventItem){
-                return;
-            }
-            if(control.getAttribute("data-cal")==="google"){
-                window.open(googleCalendarUrl(eventItem),"_blank");
-            } else {
-                downloadIcs(eventItem);
-            }
-        }
-    });
-    if(search){
-        search.addEventListener("input",function(){
-            state.search=this.value||"";
-            renderUpcoming();
-        });
+
+    events=state.events.filter(function(eventItem){
+        return eventItem.homepage&&isUpcoming(eventItem);
+    }).slice(0,CFG.homepageLimit);
+
+    rows=events.map(function(eventItem){
+        return '<a class="cfle-home-event" href="'+escapeHtml(eventItem.url)+'">'+
+            '<span class="cfle-home-event-date">'+escapeHtml(homeDateLabel(eventItem))+'</span>'+
+            '<strong class="cfle-home-event-title">'+escapeHtml(eventItem.title)+'</strong>'+
+            '<span class="cfle-home-event-arrow" aria-hidden="true">&#8594;</span>'+
+        '</a>';
+    }).join("");
+
+    if(widget.className.indexOf("cfle-home-events-widget")===-1){
+        widget.className+=" cfle-home-events-widget";
     }
+    widget.className=widget.className.replace(/\s*cfle-home-events-pending/g,"");
+    widget.innerHTML='<div class="cfle-home-events-shell">'+
+        '<h2 class="cfle-home-events-heading">Upcoming at Chabad</h2>'+
+        '<div class="cfle-home-events-list">'+
+            (rows||'<div class="cfle-home-events-empty">New programs will be posted soon.</div>')+
+        '</div>'+
+        '<a class="cfle-home-events-more" href="'+escapeHtml(CFG.upcomingUrl)+'">View More</a>'+
+    '</div>';
+    widget.style.visibility="visible";
 }
 
-function renderAll(events,fromCurrentDocument){
-    events=addSpecialEvents(events);
-    state.events=events;
-    if(fromCurrentDocument){
-        hideNativeIndexSources(events);
+function startHomepageWatcher(){
+    var attempts=0;
+    var timer;
+    var observer;
+
+    if(state.homeWatcherStarted){
+        return;
     }
-    bindUi();
-    setChipState();
-    renderUpcoming();
-    renderPast();
+    state.homeWatcherStarted=true;
+
     renderHomepage();
-    hideExpiredDropdownLinks();
-}
 
-function useCachedEvents(){
-    var cached=readCache();
-    if(cached.length){
-        renderAll(cached,false);
-        return true;
-    }
-    return false;
-}
-
-function loadEvents(){
-    var currentEvents=[];
-    var usedCurrent=false;
-
-    if(qs("#cfle-events")){
-        currentEvents=parseIndexEvents(d);
-        if(currentEvents.length){
-            usedCurrent=true;
-            writeCache(currentEvents);
-            renderAll(currentEvents,true);
+    timer=window.setInterval(function(){
+        attempts++;
+        if(findPendingHomepageMarkerWidget()){
+            renderHomepage();
+            window.clearInterval(timer);
+            return;
         }
-    }
-
-    if(!usedCurrent){
-        useCachedEvents();
-    }
-
-    requestSource().then(function(html){
-        var events=parseSourceHtml(html);
-        if(events.length){
-            writeCache(events);
-            renderAll(events,false);
-        } else if(!usedCurrent&&!state.events.length){
-            renderAll([],false);
+        if(attempts>=30){
+            window.clearInterval(timer);
         }
-    }).catch(function(){
-        if(!state.events.length){
-            renderAll([],false);
-        }
-    });
-}
+    },300);
 
-function init(){
-    loadEvents();
-    if(window.MutationObserver){
-        var timer;
-        var observer=new MutationObserver(function(){
-            window.clearTimeout(timer);
-            timer=window.setTimeout(function(){
-                if(state.events.length){
-                    renderHomepage();
-                    hideExpiredDropdownLinks();
-                }
-            },150);
+    if(window.MutationObserver&&d.body){
+        observer=new MutationObserver(function(){
+            if(findPendingHomepageMarkerWidget()){
+                renderHomepage();
+            }
         });
         observer.observe(d.body,{childList:true,subtree:true});
     }
 }
 
-window.CFLEPageEvents={
-    refresh:loadEvents,
-    parseIndexEvents:parseIndexEvents
-};
+function renderPast(){
+    var root=qs("#cfle-past-events");
+    var events;
+
+    if(!root){
+        return;
+    }
+
+    events=pastEvents();
+    root.innerHTML=events.length?
+        '<div class="cfle-past-intro">Recently concluded programs</div><div class="cfle-grid cfle-grid--past">'+
+        events.map(function(eventItem){ return cardHtml(eventItem,false,true); }).join("")+
+        '</div>':
+        '<div class="cfle-empty"><strong>No new archived events yet.</strong><span>Your existing historical gallery remains below.</span></div>';
+}
+
+function hideNativeSourceContainers(events){
+    (events||[]).forEach(function(eventItem){
+        if(eventItem.sourceContainer&&eventItem.sourceContainer.className.indexOf("cfle-native-event-source")===-1){
+            eventItem.sourceContainer.className+=" cfle-native-event-source";
+        }
+    });
+}
+
+function navItemForAnchor(anchor){
+    return closestBySelector(anchor,"li,td.co_menu_item,.co_menu_item,.menu-item")||anchor.parentNode;
+}
+
+function cleanExpiredNavigation(){
+    var expired={};
+    var anchors;
+
+    state.events.forEach(function(eventItem){
+        if(!eventItem.recurring&&isPast(eventItem)){
+            expired[canonicalPath(eventItem.url)]=true;
+        }
+    });
+
+    anchors=qsa('.site-nav-wrapper a[href],#co_menu_container a[href],#header a[href]');
+    anchors.forEach(function(anchor){
+        var path=canonicalPath(anchor.href||anchor.getAttribute("href")||"");
+        var item;
+        if(expired[path]){
+            item=navItemForAnchor(anchor);
+            if(item&&item.style){
+                item.style.display="none";
+            }
+        }
+    });
+}
+
+function startNavigationCleanup(){
+    var attempts=0;
+    var timer;
+    if(state.navCleanupStarted){
+        cleanExpiredNavigation();
+        return;
+    }
+    state.navCleanupStarted=true;
+    cleanExpiredNavigation();
+    timer=window.setInterval(function(){
+        attempts++;
+        cleanExpiredNavigation();
+        if(attempts>=20){
+            window.clearInterval(timer);
+        }
+    },500);
+}
+
+function renderAll(){
+    bindUpcomingUi();
+    renderUpcoming();
+    startHomepageWatcher();
+    renderPast();
+    startNavigationCleanup();
+}
+
+function applyEvents(events){
+    state.events=addSpecialEvents(events||[]);
+    renderAll();
+}
+
+function loadEvents(){
+    var cached=readCache();
+    var currentEvents=[];
+
+    if(cached.length){
+        applyEvents(cached);
+    }
+
+    if(qs("#cfle-events")){
+        currentEvents=parseIndexEvents(d,true);
+        if(currentEvents.length){
+            hideNativeSourceContainers(currentEvents);
+            writeCache(currentEvents);
+            applyEvents(currentEvents);
+        }
+    }
+
+    requestSource(function(error,html){
+        var fresh;
+        if(error||!html){
+            if(!state.events.length){
+                applyEvents([]);
+            }
+            return;
+        }
+        fresh=parseSourceHtml(html);
+        writeCache(fresh);
+        applyEvents(fresh);
+    });
+}
+
+function start(){
+    var widget=findHomepageMarkerWidget();
+    if(widget){
+        widget.style.visibility="hidden";
+    }
+    loadEvents();
+}
 
 if(d.readyState==="loading"){
-    d.addEventListener("DOMContentLoaded",init);
+    d.addEventListener("DOMContentLoaded",start);
 } else {
-    init();
+    start();
 }
 
 })();
