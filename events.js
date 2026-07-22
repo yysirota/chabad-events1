@@ -8,7 +8,7 @@ window.CFLE_PAGE_EVENTS_V80_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"8.0.10",
+    version:"8.0.11",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -21,9 +21,8 @@ var CFG={
         enabled:true,
         title:"Lox & Learn",
         url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
-        calendarMonthUrl:"/calendar/view/month.asp",
-        searchMonths:4,
-        cacheKey:"cfleCalendarLoxV810",
+        calendarFeedUrl:"/templates/events.htm",
+        cacheKey:"cfleCalendarLoxV811",
         cacheMs:21600000,
         startHour:10,
         startMinute:0,
@@ -948,67 +947,66 @@ function getNewYorkNowParts(){
     }
 }
 
-function firstCalendarMonthParts(){
-    var nowParts=getNewYorkNowParts();
-
-    return {
-        year:nowParts.year,
-        month:nowParts.month,
-        day:1,
-        hour:0,
-        minute:0
-    };
-}
-
-function addMonthsToParts(parts,months){
-    var date=new Date(
-        Date.UTC(
-            parts.year,
-            parts.month-1+months,
-            1
-        )
-    );
-
-    return {
-        year:date.getUTCFullYear(),
-        month:date.getUTCMonth()+1,
-        day:1,
-        hour:0,
-        minute:0
-    };
-}
-
-function calendarMonthRequestUrl(parts){
+function calendarFeedRequestUrl(){
     var cacheWindow=Math.floor(Date.now()/300000);
-    var dateValue=
-        parts.month+"/1/"+
-        parts.year;
 
-    return CFG.lox.calendarMonthUrl+
-        "?tdate="+
-        encodeURIComponent(dateValue)+
-        "&cfle_lox_calendar="+
+    return CFG.lox.calendarFeedUrl+
+        (CFG.lox.calendarFeedUrl.indexOf("?")>-1?"&":"?")+
+        "cfle_lox_calendar="+
         cacheWindow;
+}
+
+function calendarFeedTime(item){
+    var nodes=qsa(
+        ".event_options.list_info div",
+        item
+    );
+    var index;
+    var text;
+
+    for(index=nodes.length-1;index>=0;index--){
+        text=oneLine(
+            nodes[index].textContent||
+            nodes[index].innerText||
+            ""
+        );
+
+        if(/\d{1,2}(?::\d{2})?\s*(?:am|pm)/i.test(text)){
+            return text;
+        }
+    }
+
+    return oneLine(
+        item.getAttribute("title")||
+        ""
+    );
 }
 
 function parseCalendarLoxHtml(html){
     var parser=new DOMParser();
     var doc=parser.parseFromString(html,"text/html");
-    var titles=qsa(".event.mosad.title",doc);
+    var items=qsa(".category_item",doc);
     var matches=[];
 
-    titles.forEach(function(title){
+    items.forEach(function(item){
+        var parent=item.parentNode;
+        var dateNode=parent?
+            qs(".date_stamp .date",parent):
+            null;
+        var titleNode=
+            qs(".event_wrapper .event_name",item)||
+            qs(".event_name",item);
         var titleText=oneLine(
-            title.getAttribute("data-title")||
-            title.getAttribute("data-long-title")||
-            title.textContent||
-            ""
+            titleNode?
+                (titleNode.textContent||titleNode.innerText||""):
+                ""
         );
-        var item;
-        var datedContainer;
-        var dateText;
-        var timeElement;
-        var timeText;
+        var dateText=oneLine(
+            dateNode?
+                (dateNode.textContent||dateNode.innerText||""):
+                ""
+        );
+        var timeText=calendarFeedTime(item);
         var dateInfo;
         var locationLink;
         var locationText;
@@ -1016,22 +1014,6 @@ function parseCalendarLoxHtml(html){
         if(normalized(titleText)!==normalized(CFG.lox.title)){
             return;
         }
-
-        item=closestBySelector(title,".category_item")||title.parentNode;
-        datedContainer=closestBySelector(title,"[date]");
-
-        dateText=oneLine(
-            title.getAttribute("date")||
-            (datedContainer?datedContainer.getAttribute("date"):"")||
-            ""
-        );
-
-        timeElement=item?qs(".time",item):null;
-        timeText=oneLine(
-            (timeElement?timeElement.textContent:"")||
-            (item&&item.getAttribute?item.getAttribute("title"):"")||
-            ""
-        );
 
         dateInfo=parseEventDateTime(
             dateText+
@@ -1042,16 +1024,14 @@ function parseCalendarLoxHtml(html){
             return;
         }
 
-        locationLink=item?
-            qs(
-                '.description a[href*="maps.google"],'+
-                '.description a[href*="google.com/maps"]',
-                item
-            ):
-            null;
+        locationLink=qs(
+            '.event_info a[href*="maps.google.com"],'+
+            '.event_info a[href*="google.com/maps"]',
+            item
+        );
 
         locationText=locationLink?
-            oneLine(locationLink.textContent||""):
+            oneLine(locationLink.textContent||locationLink.innerText||""):
             CFG.defaultLocation;
 
         matches.push({
@@ -1085,72 +1065,38 @@ function parseCalendarLoxHtml(html){
 }
 
 function requestCalendarLox(callback){
-    var firstMonth;
-    var monthIndex=0;
-    var successfulRequests=0;
-    var nearest=null;
+    var request;
+    var url;
 
     if(!CFG.lox.enabled){
         callback(null,null);
         return;
     }
 
-    firstMonth=firstCalendarMonthParts();
+    url=calendarFeedRequestUrl();
+    request=new XMLHttpRequest();
+    request.open("GET",url,true);
+    request.onreadystatechange=function(){
+        var eventItem;
 
-    function finish(){
-        callback(
-            successfulRequests?
-                null:
-                new Error("Calendar request failed"),
-            nearest
-        );
-    }
-
-    function requestNextMonth(){
-        var parts;
-        var request;
-        var url;
-
-        if(monthIndex>=CFG.lox.searchMonths){
-            finish();
+        if(request.readyState!==4){
             return;
         }
 
-        parts=addMonthsToParts(
-            firstMonth,
-            monthIndex
+        if(request.status>=200&&request.status<300){
+            eventItem=parseCalendarLoxHtml(
+                request.responseText
+            );
+            callback(null,eventItem);
+            return;
+        }
+
+        callback(
+            new Error("Calendar feed request failed"),
+            null
         );
-        monthIndex++;
-        url=calendarMonthRequestUrl(parts);
-        request=new XMLHttpRequest();
-        request.open("GET",url,true);
-        request.onreadystatechange=function(){
-            var eventItem;
-
-            if(request.readyState!==4){
-                return;
-            }
-
-            if(request.status>=200&&request.status<300){
-                successfulRequests++;
-                eventItem=parseCalendarLoxHtml(
-                    request.responseText
-                );
-
-                if(
-                    eventItem&&
-                    (!nearest||eventItem.startTs<nearest.startTs)
-                ){
-                    nearest=eventItem;
-                }
-            }
-
-            requestNextMonth();
-        };
-        request.send(null);
-    }
-
-    requestNextMonth();
+    };
+    request.send(null);
 }
 
 function nextWeekdayParts(weekday,hour,minute){
