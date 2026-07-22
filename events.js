@@ -1,4 +1,3 @@
-
 (function(){
 "use strict";
 
@@ -9,7 +8,7 @@ window.CFLE_PAGE_EVENTS_V80_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"8.0.9",
+    version:"8.0.10",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -22,10 +21,13 @@ var CFG={
         enabled:true,
         title:"Lox & Learn",
         url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
-        calendarDayUrl:"/calendar/view/day.asp",
-        searchWeeks:8,
-        cacheKey:"cfleCalendarLoxV809",
+        calendarMonthUrl:"/calendar/view/month.asp",
+        searchMonths:4,
+        cacheKey:"cfleCalendarLoxV810",
         cacheMs:21600000,
+        startHour:10,
+        startMinute:0,
+        durationMinutes:60,
         homepage:true,
         upcoming:true
     }
@@ -946,35 +948,43 @@ function getNewYorkNowParts(){
     }
 }
 
-function firstCalendarSundayParts(){
+function firstCalendarMonthParts(){
     var nowParts=getNewYorkNowParts();
-    var todayUtc=new Date(
-        Date.UTC(
-            nowParts.year,
-            nowParts.month-1,
-            nowParts.day
-        )
-    );
-    var todayWeekday=todayUtc.getUTCDay();
-    var daysUntilSunday=(7-todayWeekday)%7;
 
-    return addDaysToParts({
+    return {
         year:nowParts.year,
         month:nowParts.month,
-        day:nowParts.day,
+        day:1,
         hour:0,
         minute:0
-    },daysUntilSunday);
+    };
 }
 
-function calendarDayRequestUrl(parts){
+function addMonthsToParts(parts,months){
+    var date=new Date(
+        Date.UTC(
+            parts.year,
+            parts.month-1+months,
+            1
+        )
+    );
+
+    return {
+        year:date.getUTCFullYear(),
+        month:date.getUTCMonth()+1,
+        day:1,
+        hour:0,
+        minute:0
+    };
+}
+
+function calendarMonthRequestUrl(parts){
     var cacheWindow=Math.floor(Date.now()/300000);
     var dateValue=
-        parts.month+"/"+
-        parts.day+"/"+
+        parts.month+"/1/"+
         parts.year;
 
-    return CFG.lox.calendarDayUrl+
+    return CFG.lox.calendarMonthUrl+
         "?tdate="+
         encodeURIComponent(dateValue)+
         "&cfle_lox_calendar="+
@@ -1075,38 +1085,43 @@ function parseCalendarLoxHtml(html){
 }
 
 function requestCalendarLox(callback){
-    var firstSunday;
-    var weekIndex=0;
+    var firstMonth;
+    var monthIndex=0;
     var successfulRequests=0;
+    var nearest=null;
 
     if(!CFG.lox.enabled){
         callback(null,null);
         return;
     }
 
-    firstSunday=firstCalendarSundayParts();
+    firstMonth=firstCalendarMonthParts();
 
-    function requestNextSunday(){
+    function finish(){
+        callback(
+            successfulRequests?
+                null:
+                new Error("Calendar request failed"),
+            nearest
+        );
+    }
+
+    function requestNextMonth(){
         var parts;
         var request;
         var url;
 
-        if(weekIndex>=CFG.lox.searchWeeks){
-            callback(
-                successfulRequests?
-                    null:
-                    new Error("Calendar request failed"),
-                null
-            );
+        if(monthIndex>=CFG.lox.searchMonths){
+            finish();
             return;
         }
 
-        parts=addDaysToParts(
-            firstSunday,
-            weekIndex*7
+        parts=addMonthsToParts(
+            firstMonth,
+            monthIndex
         );
-        weekIndex++;
-        url=calendarDayRequestUrl(parts);
+        monthIndex++;
+        url=calendarMonthRequestUrl(parts);
         request=new XMLHttpRequest();
         request.open("GET",url,true);
         request.onreadystatechange=function(){
@@ -1122,18 +1137,127 @@ function requestCalendarLox(callback){
                     request.responseText
                 );
 
-                if(eventItem){
-                    callback(null,eventItem);
-                    return;
+                if(
+                    eventItem&&
+                    (!nearest||eventItem.startTs<nearest.startTs)
+                ){
+                    nearest=eventItem;
                 }
             }
 
-            requestNextSunday();
+            requestNextMonth();
         };
         request.send(null);
     }
 
-    requestNextSunday();
+    requestNextMonth();
+}
+
+function nextWeekdayParts(weekday,hour,minute){
+    var nowParts=getNewYorkNowParts();
+    var todayUtc=new Date(
+        Date.UTC(
+            nowParts.year,
+            nowParts.month-1,
+            nowParts.day
+        )
+    );
+    var todayWeekday=todayUtc.getUTCDay();
+    var daysUntil=(weekday-todayWeekday+7)%7;
+    var candidate=addDaysToParts({
+        year:nowParts.year,
+        month:nowParts.month,
+        day:nowParts.day,
+        hour:hour,
+        minute:minute
+    },daysUntil);
+
+    if(
+        daysUntil===0&&
+        timestampFromParts(candidate)<=
+            timestampFromParts(nowParts)
+    ){
+        candidate=addDaysToParts(candidate,7);
+    }
+
+    return candidate;
+}
+
+function buildFallbackLoxEvent(){
+    var startParts;
+    var endParts;
+    var date;
+
+    startParts=nextWeekdayParts(
+        0,
+        CFG.lox.startHour,
+        CFG.lox.startMinute
+    );
+
+    endParts={
+        year:startParts.year,
+        month:startParts.month,
+        day:startParts.day,
+        hour:startParts.hour+
+            Math.floor(CFG.lox.durationMinutes/60),
+        minute:startParts.minute+
+            (CFG.lox.durationMinutes%60)
+    };
+
+    if(endParts.minute>=60){
+        endParts.hour+=Math.floor(endParts.minute/60);
+        endParts.minute=endParts.minute%60;
+    }
+
+    if(endParts.hour>=24){
+        endParts.hour=endParts.hour%24;
+        endParts=addDaysToParts(endParts,1);
+    }
+
+    date={
+        year:startParts.year,
+        month:monthName(startParts.month),
+        monthNumber:startParts.month,
+        day:startParts.day,
+        weekday:weekdayNameFromYmd(
+            startParts.year,
+            startParts.month,
+            startParts.day
+        ),
+        label:weekdayNameFromYmd(
+            startParts.year,
+            startParts.month,
+            startParts.day
+        )+", "+
+            monthName(startParts.month)+
+            " "+startParts.day+
+            ", "+startParts.year
+    };
+
+    return {
+        id:"calendar-lox-fallback-"+
+            timestampFromParts(startParts),
+        title:CFG.lox.title,
+        url:absoluteUrl(CFG.lox.url),
+        startTs:timestampFromParts(startParts),
+        endTs:timestampFromParts(endParts),
+        startParts:startParts,
+        endParts:endParts,
+        allDay:false,
+        time:formatClockParts(startParts)+
+            " - "+
+            formatClockParts(endParts),
+        date:date,
+        location:{
+            text:CFG.defaultLocation,
+            name:"Chabad of Fort Lee"
+        },
+        homepage:CFG.lox.homepage,
+        upcoming:CFG.lox.upcoming,
+        featured:false,
+        recurring:true,
+        sourceContainer:null
+    };
 }
 
 function readCalendarLoxCache(){
@@ -1941,8 +2065,14 @@ function ensureCalendarLox(){
     state.calendarLoxRequested=true;
 
     requestCalendarLox(function(error,eventItem){
+        /*
+         * The calendar month page is the primary source.
+         * The fallback prevents the entire events area from
+         * going blank if the calendar request is temporarily
+         * unavailable or its markup changes.
+         */
         if(error){
-            return;
+            eventItem=buildFallbackLoxEvent();
         }
 
         writeCalendarLoxCache(eventItem);
