@@ -66,7 +66,7 @@ function normalized(value){
 }
 
 function escapeHtml(value){
-    return String(value||"").replace(/[&<>\"]/g,function(character){
+return String(value||"").replace(/[&<>\"]/g,function(character){
         return {
             "&":"&amp;",
             "<":"&lt;",
@@ -74,6 +74,298 @@ function escapeHtml(value){
             "\"":"&quot;"
         }[character];
     });
+}
+
+/* ============================================================
+   DYNAMIC EVENT-TITLE FITTING
+   Keeps short titles on one line and longer titles within two.
+   ============================================================ */
+
+function measuredLineHeight(element){
+
+    var styles=
+        window.getComputedStyle(element);
+
+    var lineHeight=
+        parseFloat(styles.lineHeight);
+
+    if(isNaN(lineHeight)){
+
+        lineHeight=
+            parseFloat(styles.fontSize)*
+            1.08;
+    }
+
+    return lineHeight;
+}
+
+function fitTitleElement(
+    element,
+    maximumSize,
+    minimumSize,
+    shortTitleLimit
+){
+
+    var text;
+    var preferredLines;
+    var currentSize;
+
+    if(
+        !element ||
+        !element.offsetWidth
+    ){
+        return;
+    }
+
+    text=
+        oneLine(
+            element.textContent||
+            element.innerText||
+            ""
+        );
+
+    /*
+     * Short titles such as "Lox & Learn"
+     * should stay on one line.
+     *
+     * Longer titles may use two lines.
+     */
+    preferredLines=
+        text.length<=shortTitleLimit?
+        1:
+        2;
+
+    function prepareForMeasurement(lines){
+
+        element.style.display=
+            "block";
+
+        element.style.overflow=
+            "visible";
+
+        element.style.textOverflow=
+            "clip";
+
+        element.style.webkitLineClamp=
+            "unset";
+
+        element.style.webkitBoxOrient=
+            "initial";
+
+        element.style.lineHeight=
+            "1.06";
+
+        element.style.whiteSpace=
+            lines===1?
+            "nowrap":
+            "normal";
+    }
+
+    function fitsWithin(lines){
+
+        var allowedHeight;
+
+        if(lines===1){
+
+            return (
+                element.scrollWidth<=
+                element.clientWidth+1
+            );
+        }
+
+        allowedHeight=
+            measuredLineHeight(element)*
+            lines;
+
+        return (
+            element.scrollHeight<=
+            allowedHeight+2
+        );
+    }
+
+    function reduceUntilFit(lines){
+
+        currentSize=
+            maximumSize;
+
+        prepareForMeasurement(lines);
+
+        while(
+            currentSize>
+            minimumSize
+        ){
+
+            element.style.fontSize=
+                currentSize+"px";
+
+            if(fitsWithin(lines)){
+                break;
+            }
+
+            currentSize--;
+        }
+    }
+
+    reduceUntilFit(
+        preferredLines
+    );
+
+    /*
+     * If even the minimum size cannot keep a short title
+     * on one line, allow it to use two lines rather than
+     * clipping any words.
+     */
+    if(
+        preferredLines===1 &&
+        !fitsWithin(1)
+    ){
+
+        preferredLines=2;
+
+        reduceUntilFit(2);
+    }
+
+    element.style.fontSize=
+        currentSize+"px";
+
+    element.style.overflow=
+        "hidden";
+
+    if(preferredLines===1){
+
+        element.style.display=
+            "block";
+
+        element.style.whiteSpace=
+            "nowrap";
+
+        element.style.webkitLineClamp=
+            "unset";
+
+    } else {
+
+        element.style.display=
+            "-webkit-box";
+
+        element.style.whiteSpace=
+            "normal";
+
+        element.style.webkitBoxOrient=
+            "vertical";
+
+        element.style.webkitLineClamp=
+            "2";
+    }
+}
+
+function fitAllEventTitles(root){
+
+    var scope=
+        root||
+        document;
+
+    /*
+     * Homepage titles:
+     * short titles remain on one line;
+     * longer titles may use two.
+     */
+    qsa(
+        ".cfle-home-event-title",
+        scope
+    ).forEach(function(title){
+
+        fitTitleElement(
+            title,
+            25,
+            16,
+            18
+        );
+    });
+
+    /*
+     * Main Upcoming at Chabad cards.
+     */
+    qsa(
+        ".cfle-event-title a",
+        scope
+    ).forEach(function(title){
+
+        var card=
+            closestBySelector(
+                title,
+                ".cfle-card"
+            );
+
+        var cardWidth=
+            card?
+            card.getBoundingClientRect()
+                .width:
+            0;
+
+        if(window.innerWidth<=700){
+
+            /*
+             * Mobile:
+             * "Lox & Learn" remains one line.
+             * Longer names shrink and use at most two.
+             */
+            fitTitleElement(
+                title,
+                31,
+                18,
+                20
+            );
+
+        } else if(cardWidth>=700){
+
+            /*
+             * Full-width desktop card.
+             */
+            fitTitleElement(
+                title,
+                42,
+                24,
+                26
+            );
+
+        } else {
+
+            /*
+             * Half-width desktop card.
+             */
+            fitTitleElement(
+                title,
+                28,
+                18,
+                20
+            );
+        }
+    });
+}
+
+function scheduleEventTitleFit(root){
+
+    var runFit=function(){
+
+        fitAllEventTitles(
+            root||
+            document
+        );
+    };
+
+    if(window.requestAnimationFrame){
+
+        window.requestAnimationFrame(
+            runFit
+        );
+
+    } else {
+
+        window.setTimeout(
+            runFit,
+            0
+        );
+    }
 }
 
 function absoluteUrl(url){
