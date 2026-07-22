@@ -302,19 +302,70 @@ function fitAllEventTitles(root){
                 .width:
             0;
 
-        if(window.innerWidth<=700){
+       if(window.innerWidth<=700){
 
-            /*
-             * Mobile:
-             * "Lox & Learn" remains one line.
-             * Longer names shrink and use at most two.
-             */
-             fitTitleElement(
-        title,
-        30,
-        14,
-        24
+    var mobileTitleText=
+        oneLine(
+            title.textContent||
+            title.innerText||
+            ""
+        );
+
+    title.classList.remove(
+        "cfle-mobile-short-title"
     );
+
+    /*
+     * Short titles such as "Lox & Learn"
+     * must remain on one line.
+     */
+    if(mobileTitleText.length<=18){
+
+        title.classList.add(
+            "cfle-mobile-short-title"
+        );
+
+        /*
+         * Remove measurements previously written
+         * by the automatic title fitter.
+         */
+        title.style.removeProperty(
+            "font-size"
+        );
+
+        title.style.removeProperty(
+            "display"
+        );
+
+        title.style.removeProperty(
+            "white-space"
+        );
+
+        title.style.removeProperty(
+            "overflow"
+        );
+
+        title.style.removeProperty(
+            "-webkit-line-clamp"
+        );
+
+        title.style.removeProperty(
+            "-webkit-box-orient"
+        );
+
+    } else {
+
+        /*
+         * Longer titles may occupy a maximum
+         * of two lines.
+         */
+        fitTitleElement(
+            title,
+            28,
+            16,
+            0
+        );
+    }
 
         } else if(cardWidth>=700){
 
