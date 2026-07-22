@@ -1378,6 +1378,7 @@ function renderUpcoming(){
     }
 
     bindCalendarButtons(root);
+    scheduleEventTitleFit(root);
 }
 
 function bindUpcomingUi(){
@@ -1510,6 +1511,7 @@ function renderHomepage(){
         '<a class="cfle-home-events-more" href="'+escapeHtml(CFG.upcomingUrl)+'">View More</a>'+
     '</div>';
     widget.style.visibility="visible";
+    scheduleEventTitleFit(widget);
 }
 
 function startHomepageWatcher(){
@@ -1660,6 +1662,38 @@ function loadEvents(){
 }
 
 function start(){
+    
+    if(
+    !window.CFLE_EVENT_TITLE_RESIZE_BOUND
+){
+
+    window.CFLE_EVENT_TITLE_RESIZE_BOUND=
+        true;
+
+    var titleResizeTimer;
+
+    window.addEventListener(
+        "resize",
+        function(){
+
+            window.clearTimeout(
+                titleResizeTimer
+            );
+
+            titleResizeTimer=
+                window.setTimeout(
+                    function(){
+
+                        scheduleEventTitleFit(
+                            document
+                        );
+
+                    },
+                    120
+                );
+        }
+    );
+}
     var widget=findHomepageMarkerWidget();
     if(widget){
         widget.style.visibility="hidden";
