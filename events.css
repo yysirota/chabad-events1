@@ -1563,3 +1563,357 @@ a.cfle-home-more:hover{
         font-size:15px !important;
     }
 }
+/* ============================================================
+   CFLE EVENT LAYOUT — FINAL SIZE AND ALIGNMENT CORRECTIONS
+   VERSION 8.0.4
+   ============================================================ */
+
+/* ============================================================
+   UPCOMING AT CHABAD — WIDE DESKTOP CARD
+   ============================================================ */
+
+@media (min-width:701px){
+
+    /*
+     * When the first card spans the full row, enlarge the
+     * left date panel and event content substantially.
+     */
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd){
+        grid-template-columns:
+            142px
+            minmax(0,1fr)
+            300px !important;
+
+        column-gap:32px !important;
+        min-height:242px !important;
+        padding:28px 30px !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    > .cfle-date{
+        width:142px !important;
+        min-height:176px !important;
+        padding:17px 10px !important;
+        border-radius:20px !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-month,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-weekday{
+        font-size:17px !important;
+        line-height:1.1 !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-day{
+        margin:8px 0 6px !important;
+        font-size:68px !important;
+        line-height:.95 !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title{
+        margin:0 0 17px !important;
+        font-size:39px !important;
+        line-height:1.08 !important;
+        font-weight:900 !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-meta{
+        gap:12px !important;
+        font-size:18px !important;
+        line-height:1.35 !important;
+    }
+}
+
+
+/* ============================================================
+   UPCOMING AT CHABAD — MOBILE
+   ============================================================ */
+
+@media (max-width:700px){
+
+    /*
+     * Give the content side slightly more room so the time
+     * can remain on one line.
+     */
+    #cfle-events
+    .cfle-grid
+    > .cfle-card,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd){
+        grid-template-columns:
+            118px
+            minmax(0,1fr) !important;
+
+        grid-template-areas:
+            "date body"
+            "actions actions" !important;
+
+        column-gap:11px !important;
+        row-gap:0 !important;
+
+        padding:17px !important;
+    }
+
+    #cfle-events .cfle-card > .cfle-date{
+        width:118px !important;
+        min-height:170px !important;
+        padding:14px 7px !important;
+        border-radius:20px !important;
+    }
+
+    #cfle-events .cfle-date-month,
+    #cfle-events .cfle-date-weekday{
+        font-size:15px !important;
+    }
+
+    #cfle-events .cfle-date-day{
+        margin:7px 0 5px !important;
+        font-size:66px !important;
+        line-height:.95 !important;
+    }
+
+    /*
+     * Center all content in the right-hand side.
+     */
+    #cfle-events .cfle-body{
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:center !important;
+        justify-content:center !important;
+        min-width:0 !important;
+        text-align:center !important;
+    }
+
+    #cfle-events .cfle-event-title{
+        display:block !important;
+        width:100% !important;
+        margin:0 0 14px !important;
+
+        font-size:27px !important;
+        line-height:1.08 !important;
+        font-weight:900 !important;
+        text-align:center !important;
+    }
+
+    /*
+     * Keep time and location compact enough to fit.
+     */
+    #cfle-events .cfle-meta{
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:center !important;
+        justify-content:center !important;
+        gap:9px !important;
+
+        width:100% !important;
+        min-width:0 !important;
+
+        font-size:13.5px !important;
+        line-height:1.2 !important;
+        text-align:center !important;
+    }
+
+    #cfle-events .cfle-meta-row{
+        display:flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        gap:7px !important;
+
+        width:100% !important;
+        min-width:0 !important;
+    }
+
+    #cfle-events .cfle-meta-row:first-child,
+    #cfle-events .cfle-time{
+        white-space:nowrap !important;
+    }
+
+    #cfle-events .cfle-meta-svg{
+        width:20px !important;
+        height:20px !important;
+        flex:0 0 20px !important;
+    }
+
+    /*
+     * Two calendar pills in one row.
+     */
+    #cfle-events .cfle-event-actions{
+        display:grid !important;
+        grid-template-columns:
+            minmax(0,1fr)
+            minmax(0,1fr) !important;
+
+        width:100% !important;
+        gap:9px !important;
+        margin-top:20px !important;
+    }
+
+    #cfle-events .cfle-action{
+        width:100% !important;
+        min-width:0 !important;
+        min-height:51px !important;
+
+        padding:10px 7px !important;
+
+        font-size:12.5px !important;
+        line-height:1.1 !important;
+        font-weight:900 !important;
+        white-space:nowrap !important;
+    }
+
+    #cfle-events .cfle-action svg{
+        flex:0 0 auto !important;
+    }
+
+    /*
+     * View Details must occupy the complete width beneath
+     * both calendar buttons.
+     */
+    #cfle-events .cfle-view-action{
+        display:flex !important;
+        grid-column:1 / -1 !important;
+
+        width:100% !important;
+        max-width:none !important;
+        min-height:58px !important;
+
+        margin:0 !important;
+        padding:13px 16px !important;
+
+        font-size:17px !important;
+        font-weight:900 !important;
+    }
+}
+
+
+/* ============================================================
+   HOMEPAGE — EVENT CARD
+   ============================================================ */
+
+/*
+ * Increase the event title while slightly reducing the time.
+ */
+.cfle-home-event-title{
+    font-size:25px !important;
+    line-height:1.06 !important;
+    font-weight:900 !important;
+}
+
+.cfle-home-event-time{
+    margin-top:6px !important;
+    font-size:12.5px !important;
+    line-height:1.15 !important;
+    font-weight:800 !important;
+    white-space:nowrap !important;
+}
+
+/*
+ * Slightly enlarge the homepage date panel.
+ */
+.cfle-home-date-box{
+    width:84px !important;
+    min-height:102px !important;
+}
+
+.cfle-home-date-day{
+    font-size:34px !important;
+}
+
+.cfle-home-date-month,
+.cfle-home-date-weekday{
+    font-size:12px !important;
+}
+
+
+/* ============================================================
+   HOMEPAGE — VIEW MORE BUTTON
+   Catch both possible class names used by earlier versions.
+   ============================================================ */
+
+.cfle-home-events-more,
+.cfle-home-more,
+a.cfle-home-events-more,
+a.cfle-home-more{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+
+    width:max-content !important;
+    min-width:126px !important;
+    min-height:44px !important;
+    box-sizing:border-box !important;
+
+    margin:20px auto 0 !important;
+    padding:11px 22px 10px !important;
+
+    border:2px solid #e5a900 !important;
+    border-radius:999px !important;
+
+    background:transparent !important;
+    background-image:none !important;
+
+    color:#222 !important;
+    font-size:14px !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    text-align:center !important;
+    text-decoration:none !important;
+
+    box-shadow:none !important;
+    transform:none !important;
+}
+
+.cfle-home-events-more:hover,
+.cfle-home-more:hover,
+a.cfle-home-events-more:hover,
+a.cfle-home-more:hover{
+    background:rgba(229,169,0,.10) !important;
+    color:#111 !important;
+
+    transform:translateY(-2px) scale(1.025) !important;
+
+    box-shadow:
+        0 8px 18px
+        rgba(0,0,0,.06) !important;
+}
+
+
+/* Homepage mobile refinements */
+@media (max-width:700px){
+
+    .cfle-home-event-title{
+        font-size:25px !important;
+    }
+
+    .cfle-home-event-time{
+        font-size:12px !important;
+    }
+
+    .cfle-home-date-box{
+        width:82px !important;
+        min-height:100px !important;
+    }
+
+    .cfle-home-date-day{
+        font-size:33px !important;
+    }
+}
