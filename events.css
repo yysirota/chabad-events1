@@ -2178,3 +2178,80 @@ a.cfle-home-more:hover{
         text-align:left !important;
     }
 }
+/* ============================================================
+   MOBILE SHORT TITLE — ONE LINE + LOWER POSITION
+   VERSION 8.0.8
+   ============================================================ */
+
+@media (max-width:700px){
+
+    /*
+     * Move the event information slightly lower beside
+     * the large date panel.
+     */
+    #cfle-events .cfle-card-body,
+    #cfle-events .cfle-body{
+        padding-top:11px !important;
+
+        align-items:flex-start !important;
+        justify-content:center !important;
+
+        text-align:left !important;
+    }
+
+    #cfle-events .cfle-event-title{
+        width:100% !important;
+
+        margin-top:0 !important;
+        margin-bottom:17px !important;
+
+        text-align:left !important;
+    }
+
+    /*
+     * Titles of 18 characters or fewer remain on one line.
+     * "Lox & Learn" will therefore display as one line.
+     */
+    #cfle-events
+    .cfle-event-title
+    a.cfle-mobile-short-title{
+        display:block !important;
+
+        width:auto !important;
+        max-width:none !important;
+
+        margin:0 !important;
+        padding:0 !important;
+
+        overflow:visible !important;
+
+        color:#211b15 !important;
+
+        font-size:26px !important;
+        line-height:1 !important;
+        font-weight:900 !important;
+        letter-spacing:-.025em !important;
+
+        white-space:nowrap !important;
+        text-align:left !important;
+
+        -webkit-line-clamp:unset !important;
+        -webkit-box-orient:initial !important;
+    }
+
+    /*
+     * Keep time and location aligned underneath.
+     */
+    #cfle-events .cfle-meta{
+        align-items:flex-start !important;
+        justify-content:flex-start !important;
+
+        text-align:left !important;
+    }
+
+    #cfle-events .cfle-meta-item,
+    #cfle-events .cfle-meta-row{
+        justify-content:flex-start !important;
+        text-align:left !important;
+    }
+}
