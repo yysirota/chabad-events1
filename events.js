@@ -985,17 +985,40 @@ function serializeEvents(events){
 }
 
 function readCache(){
+
     try{
-        var raw=window.localStorage.getItem(CFG.cacheKey);
-        var saved=raw?JSON.parse(raw):null;
-        if(saved&&saved.events&&Date.now()-saved.time<CFG.cacheMs){
+
+        var raw=
+            window.localStorage.getItem(
+                CFG.cacheKey
+            );
+
+        var saved=
+            raw?
+            JSON.parse(raw):
+            null;
+
+        /*
+         * Display the most recently saved event list
+         * immediately, regardless of its age.
+         *
+         * The script still downloads the newest version
+         * quietly afterward.
+         */
+        if(
+            saved&&
+            saved.events
+        ){
+
             return saved.events;
         }
+
     } catch(error){
     }
+
     return [];
 }
-
+    
 function writeCache(events){
     try{
         window.localStorage.setItem(CFG.cacheKey,JSON.stringify({
@@ -1007,7 +1030,24 @@ function writeCache(events){
 }
 
 function requestSource(callback){
-    var url=CFG.sourceUrl+(CFG.sourceUrl.indexOf("?")>-1?"&":"?")+"cfle_page_events="+Date.now();
+    /*
+ * Use one source URL per five-minute window instead of
+ * forcing a completely new URL on every page load.
+ */
+var cacheWindow=
+    Math.floor(
+        Date.now()/
+        300000
+    );
+
+var url=CFG.sourceUrl+
+    (
+        CFG.sourceUrl.indexOf("?")>-1?
+        "&":
+        "?"
+    )+
+    "cfle_page_events="+
+    cacheWindow;
     var request=new XMLHttpRequest();
     request.open("GET",url,true);
     request.onreadystatechange=function(){
