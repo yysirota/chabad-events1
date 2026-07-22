@@ -1917,3 +1917,165 @@ a.cfle-home-more:hover{
         font-size:33px !important;
     }
 }
+/* ============================================================
+   EVENT TITLE + MOBILE META ALIGNMENT CORRECTION
+   VERSION 8.0.5
+   ============================================================ */
+
+/* ============================================================
+   DESKTOP — LARGE PRIMARY EVENT TITLE
+   ============================================================ */
+
+@media (min-width:701px){
+
+    /*
+     * Target both the heading and the clickable title itself.
+     * ChabadOne was applying a smaller size directly to the link.
+     */
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title a{
+        display:block !important;
+
+        margin:0 !important;
+        padding:0 !important;
+
+        color:#211b15 !important;
+
+        font-size:42px !important;
+        line-height:1.06 !important;
+        font-weight:900 !important;
+        letter-spacing:-.025em !important;
+
+        text-decoration:none !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title{
+        margin-bottom:18px !important;
+    }
+
+    /*
+     * Keep the time and location clearly beneath the large title.
+     */
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-meta{
+        font-size:18px !important;
+        line-height:1.3 !important;
+    }
+}
+
+
+/* ============================================================
+   MOBILE — TITLE CENTERED, DETAILS LEFT-ALIGNED
+   ============================================================ */
+
+@media (max-width:700px){
+
+    /*
+     * Correct content-container selector.
+     */
+    #cfle-events .cfle-card-body{
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:stretch !important;
+        justify-content:center !important;
+
+        width:100% !important;
+        min-width:0 !important;
+
+        text-align:left !important;
+    }
+
+    /*
+     * Only the event title is centered.
+     */
+    #cfle-events .cfle-event-title,
+    #cfle-events .cfle-event-title a{
+        display:block !important;
+
+        width:100% !important;
+        margin:0 !important;
+        padding:0 !important;
+
+        color:#211b15 !important;
+
+        font-size:31px !important;
+        line-height:1.04 !important;
+        font-weight:900 !important;
+        letter-spacing:-.025em !important;
+
+        text-align:center !important;
+        text-decoration:none !important;
+    }
+
+    #cfle-events .cfle-event-title{
+        margin-bottom:17px !important;
+    }
+
+    /*
+     * Time and location remain left-aligned beneath the title.
+     */
+    #cfle-events .cfle-meta{
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:flex-start !important;
+        justify-content:flex-start !important;
+
+        width:100% !important;
+        min-width:0 !important;
+
+        gap:10px !important;
+
+        font-size:13px !important;
+        line-height:1.15 !important;
+        text-align:left !important;
+    }
+
+    #cfle-events .cfle-meta-item{
+        display:flex !important;
+        align-items:center !important;
+        justify-content:flex-start !important;
+
+        width:100% !important;
+        min-width:0 !important;
+
+        gap:7px !important;
+
+        text-align:left !important;
+    }
+
+    /*
+     * Keep the complete time on one line:
+     * 10:00 AM - 11:00 AM
+     */
+    #cfle-events
+    .cfle-meta-item:first-child,
+    #cfle-events
+    .cfle-meta-item:first-child span{
+        white-space:nowrap !important;
+    }
+
+    /*
+     * Keep the location on one line as well.
+     */
+    #cfle-events .cfle-location,
+    #cfle-events .cfle-location span{
+        white-space:nowrap !important;
+    }
+
+    #cfle-events .cfle-meta-svg{
+        width:20px !important;
+        height:20px !important;
+        flex:0 0 20px !important;
+    }
+}
