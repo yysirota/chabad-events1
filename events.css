@@ -1,105 +1,78 @@
 /* ============================================================
-   CHABAD OF FORT LEE — UPCOMING AT CHABAD
-   VERSION 6.2 FINAL (5.6 DESIGN + AUTOMATIC DETAIL PAGES)
+   CHABAD OF FORT LEE — PAGE-DRIVEN EVENTS
+   VERSION 8.0.0
    ============================================================ */
 
-#cfle-events{
-    width:calc(100% - 40px);
-    max-width:1180px;
-    margin:0 auto;
-    padding:30px 0 65px;
-    box-sizing:border-box;
-    color:#332718;
+:root{
+    --cfle-gold:#e5a900;
+    --cfle-gold-dark:#b77708;
+    --cfle-gold-soft:#fff6dc;
+    --cfle-ink:#2f261a;
+    --cfle-muted:#6c5d48;
+    --cfle-line:#eadcc4;
+    --cfle-card:#fff;
+    --cfle-shadow:0 14px 34px rgba(86,57,10,.10);
+}
+
+#cfle-events,
+#cfle-past-events,
+.cfle-home-events-widget{
     font-family:Arial,Helvetica,sans-serif;
 }
 
-#cfle-events *{
+#cfle-events,
+#cfle-past-events{
+    width:calc(100% - 40px);
+    max-width:1180px;
+    margin:0 auto;
     box-sizing:border-box;
+    color:var(--cfle-ink);
 }
 
-#cfle-events button,
-#cfle-events input{
-    font-family:inherit;
+#cfle-events{
+    padding:16px 0 65px;
+}
+
+#cfle-past-events{
+    padding:6px 0 28px;
+}
+
+#cfle-events *,
+#cfle-past-events *,
+.cfle-home-events-widget *{
+    box-sizing:border-box;
 }
 
 .cfle-nowrap{
     white-space:nowrap;
 }
 
+.cfle-visually-hidden{
+    position:absolute !important;
+    width:1px !important;
+    height:1px !important;
+    padding:0 !important;
+    margin:-1px !important;
+    overflow:hidden !important;
+    clip:rect(0,0,0,0) !important;
+    white-space:nowrap !important;
+    border:0 !important;
+}
+
 /* ============================================================
-   INTRO
+   UPCOMING PAGE INTRO + TOOLBAR
    ============================================================ */
 
 #cfle-events .cfle-intro{
-    display:block;
-    width:100%;
-    max-width:1000px;
-    margin:0 auto 25px;
-    padding:0 14px;
-    color:#312418;
-    font-size:21px;
+    max-width:900px;
+    margin:0 auto 24px;
+    padding:0 12px;
+    color:#3c3020;
+    font-size:20px;
     line-height:1.45;
-    font-weight:800;
+    font-weight:750;
     text-align:center;
 }
-
-/* ============================================================
-   MAIN FILTERS
-   ============================================================ */
-
-.cfle-top-filters{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-wrap:wrap;
-    gap:10px;
-    margin:0 0 14px;
-}
-
-.cfle-filter-btn,
-.cfle-more-btn,
-.cfle-chip-btn{
-    appearance:none;
-    -webkit-appearance:none;
-    border:1px solid #d9c9ad;
-    background:#fff;
-    color:#4c3c28;
-    border-radius:999px;
-    cursor:pointer;
-    font-weight:700;
-    transition:
-        background .18s ease,
-        border-color .18s ease,
-        color .18s ease,
-        box-shadow .18s ease,
-        transform .18s ease;
-}
-
-.cfle-filter-btn{
-    min-height:44px;
-    padding:10px 22px;
-    font-size:15px;
-}
-
-.cfle-filter-btn:hover,
-.cfle-more-btn:hover,
-.cfle-chip-btn:hover{
-    border-color:#c89628;
-    background:#fff9ed;
-    color:#765111;
-}
-
-.cfle-filter-btn.active,
-.cfle-chip-btn.active{
-    border-color:#c8921d;
-    background:linear-gradient(135deg,#e5b445,#c88c16);
-    color:#fff;
-    box-shadow:0 5px 15px rgba(194,137,24,.2);
-}
-
-/* ============================================================
-   TOOLBAR
-   ============================================================ */
 
 .cfle-toolbar{
     display:flex;
@@ -107,22 +80,22 @@
     justify-content:space-between;
     gap:16px;
     margin:0 0 12px;
-    padding:10px 0 12px;
-    border-top:1px solid #eadfce;
-    border-bottom:1px solid #eadfce;
+    padding:12px 0;
+    border-top:1px solid var(--cfle-line);
+    border-bottom:1px solid var(--cfle-line);
 }
 
 .cfle-count{
     margin:0;
-    color:#66543c;
+    color:var(--cfle-muted);
     font-size:16px;
-    line-height:1.3;
+    line-height:1.25;
     font-weight:700;
 }
 
 .cfle-count strong{
-    color:#bd8110;
-    font-size:18px;
+    color:var(--cfle-gold-dark);
+    font-size:19px;
 }
 
 .cfle-toolbar-right{
@@ -132,18 +105,38 @@
     gap:10px;
 }
 
-.cfle-more-btn{
-    min-height:42px;
-    padding:9px 16px;
+.cfle-filter-toggle,
+.cfle-chip-btn{
+    appearance:none;
+    -webkit-appearance:none;
+    border:1px solid #dbcaa9;
+    background:#fff;
+    color:#4a3a25;
+    cursor:pointer;
+    font-family:inherit;
+    font-weight:800;
+    transition:background .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+
+.cfle-filter-toggle{
+    min-height:44px;
+    padding:9px 17px;
     border-radius:12px;
     font-size:14px;
 }
 
-.cfle-more-btn::before{
+.cfle-filter-toggle:hover,
+.cfle-chip-btn:hover{
+    border-color:#c38d20;
+    background:#fff9eb;
+    color:#805710;
+}
+
+.cfle-filter-toggle::before{
     content:"☷";
     display:inline-block;
     margin-right:7px;
-    color:#b47708;
+    color:var(--cfle-gold-dark);
     font-size:18px;
     vertical-align:-1px;
 }
@@ -151,1647 +144,750 @@
 .cfle-search-wrap{
     display:flex;
     align-items:center;
-    width:320px;
-    height:44px;
+    width:330px;
+    height:46px;
     padding:0 15px;
-    border:1px solid #ddd2c2;
+    border:1px solid #ded2c0;
     border-radius:999px;
     background:#fff;
-    box-shadow:inset 0 1px 2px rgba(0,0,0,.02);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.025);
 }
 
 .cfle-search-icon{
+    display:flex;
+    align-items:center;
+    justify-content:center;
     flex:0 0 auto;
-    margin-right:8px;
-    color:#a17a36;
-    font-size:15px;
+    width:20px;
+    margin-right:7px;
+    color:#9b742e;
+    font-size:16px;
 }
 
 .cfle-search{
     display:block;
     width:100%;
-    height:40px;
+    height:42px;
     padding:0;
     border:0;
     outline:0;
     background:transparent;
-    color:#443622;
+    color:#443621;
+    font-family:inherit;
     font-size:15px;
 }
 
 .cfle-search::placeholder{
-    color:#a4937c;
+    color:#9e8e78;
 }
 
-/* ============================================================
-   MORE FILTERS
-   ============================================================ */
-
-.cfle-more-panel{
+.cfle-date-panel{
     display:none;
-    grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr);
-    align-items:stretch;
-    gap:22px;
     width:100%;
-    margin:0 0 20px;
-    padding:18px 22px;
-    border:1px solid #e7d5b3;
+    margin:0 0 22px;
+    padding:16px 18px;
+    border:1px solid #e4d2af;
     border-radius:16px;
     background:#fffaf0;
-    box-shadow:0 5px 16px rgba(172,119,17,.06);
-}
-
-.cfle-more-panel.open{
-    display:grid;
-}
-
-.cfle-more-filter-group{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    min-width:0;
+    box-shadow:0 7px 18px rgba(164,111,14,.06);
     text-align:center;
 }
 
-.cfle-more-filter-label{
+.cfle-date-panel.open{
+    display:block;
+}
+
+.cfle-filter-label{
     margin:0 0 10px;
-    color:#926b29;
+    color:#906722;
     font-size:12px;
     line-height:1.2;
-    font-weight:800;
+    font-weight:900;
     letter-spacing:.08em;
-    text-align:center;
     text-transform:uppercase;
 }
 
-.cfle-more-filter-buttons{
+.cfle-date-buttons{
     display:flex;
     align-items:center;
     justify-content:center;
     flex-wrap:wrap;
     gap:8px;
-    width:100%;
 }
 
 .cfle-chip-btn{
-    min-height:38px;
-    padding:8px 15px;
+    min-height:39px;
+    padding:8px 16px;
+    border-radius:999px;
     font-size:13px;
 }
 
-.cfle-more-filter-divider{
-    display:block;
-    width:1px;
-    min-height:58px;
-    background:linear-gradient(
-        to bottom,
-        rgba(206,158,65,0),
-        rgba(206,158,65,.75) 18%,
-        rgba(206,158,65,.75) 82%,
-        rgba(206,158,65,0)
-    );
+.cfle-chip-btn.active{
+    border-color:#bf8413;
+    background:linear-gradient(135deg,#efc457,#c98b15);
+    color:#fff;
+    box-shadow:0 5px 14px rgba(188,128,17,.2);
 }
 
 /* ============================================================
-   SECTION HEADINGS
+   SECTIONS + GRID
    ============================================================ */
 
 .cfle-section{
-    margin-top:16px;
+    margin:0 0 30px;
+}
+
+.cfle-section:empty{
+    display:none;
 }
 
 .cfle-section-title{
-    display:flex;
-    align-items:center;
-    gap:7px;
-    margin:0 0 12px;
-    color:#b97c0d;
-    font-family:Georgia,"Times New Roman",serif;
-    font-size:31px;
-    line-height:1.15;
-    font-weight:700;
+    margin:0 0 16px;
+    color:var(--cfle-gold-dark) !important;
+    font-size:26px;
+    line-height:1.2;
+    font-weight:900;
+    text-align:left;
 }
 
-.cfle-section-title small{
-    color:#846a45;
-    font-family:Arial,Helvetica,sans-serif;
-    font-size:15px;
-    font-weight:700;
-}
-
-.cfle-star{
-    color:#c58c1d;
-    font-size:19px;
-}
-
-.cfle-subtle{
-    margin:-5px 0 13px;
-    color:#8b724d;
-    font-size:14px;
-    line-height:1.4;
-    font-weight:700;
-}
-
-/* ============================================================
-   SPOTLIGHT GRID
-   ============================================================ */
-
-.cfle-spot-grid{
+.cfle-grid{
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:14px;
-    margin:0 0 24px;
+    gap:18px;
 }
 
-.cfle-spot-grid.count-1 .cfle-card,
-.cfle-spot-grid.count-3 .cfle-card:first-child{
-    grid-column:1/-1;
+.cfle-grid--featured{
+    grid-template-columns:1fr;
 }
 
 /* ============================================================
-   EVENT LIST AND CARDS
+   EVENT CARDS
    ============================================================ */
-
-.cfle-list{
-    display:flex;
-    flex-direction:column;
-    gap:13px;
-}
 
 .cfle-card{
     display:grid;
-    grid-template-columns:98px minmax(0,1fr) 170px;
-    align-items:center;
-    gap:18px;
-    position:relative;
-    width:100%;
+    grid-template-columns:88px minmax(0,1fr);
+    grid-template-areas:
+        "date body"
+        "actions actions";
+    gap:0 18px;
     min-width:0;
-    padding:17px 18px;
-    border:1px solid rgba(198,150,56,.38);
-    border-radius:15px;
-    background:#fff;
-    box-shadow:
-        0 3px 10px rgba(169,112,13,.08),
-        0 0 0 1px rgba(231,202,145,.12);
-    transition:
-        transform .2s ease,
-        border-color .2s ease,
-        box-shadow .2s ease;
+    padding:20px;
+    border:2px solid #dca31e;
+    border-radius:20px;
+    background:var(--cfle-card);
+    box-shadow:var(--cfle-shadow);
+    overflow:hidden;
+    transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
 }
 
 .cfle-card:hover{
-    transform:translateY(-2px) scale(1.003);
-    border-color:rgba(195,137,26,.7);
-    box-shadow:
-        0 8px 22px rgba(176,116,10,.14),
-        0 0 12px rgba(225,173,64,.11);
+    transform:translateY(-3px);
+    border-color:#f0bb38;
+    box-shadow:0 18px 42px rgba(94,61,7,.15),0 0 0 4px rgba(229,169,0,.07);
 }
 
-.cfle-card--spotlight{
-    border-color:#dbb45f;
-    background:linear-gradient(135deg,#fffaf0,#fff5dc);
-    box-shadow:
-        0 5px 16px rgba(177,119,13,.12),
-        0 0 0 1px rgba(223,180,91,.13);
+.cfle-card--featured{
+    border-width:3px;
+    background:linear-gradient(135deg,#fffdf7 0%,#fff7df 100%);
 }
-
-/* ============================================================
-   DATE
-   ============================================================ */
 
 .cfle-date{
+    grid-area:date;
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    min-height:84px;
-    padding-right:17px;
-    border-right:1px solid #dec590;
+    align-self:start;
+    width:88px;
+    min-height:112px;
+    padding:11px 7px;
+    border:1px solid #e4bf68;
+    border-radius:16px;
+    background:linear-gradient(180deg,#fffaf0 0%,#fff 100%);
+    box-shadow:inset 0 0 0 3px rgba(229,169,0,.06);
     text-align:center;
 }
 
 .cfle-date-month,
 .cfle-date-weekday{
-    color:#b77b12;
-    font-family:Arial,Helvetica,sans-serif;
-    font-size:15px;
-    line-height:1;
-    font-weight:800;
-    letter-spacing:.1em;
+    display:block;
+    color:#bd7d08;
+    font-size:13px;
+    line-height:1.15;
+    font-weight:900;
+    letter-spacing:.08em;
     text-transform:uppercase;
 }
 
 .cfle-date-day{
-    margin:3px 0;
-    color:#171717;
-    font-family:Arial,Helvetica,sans-serif;
-    font-size:43px;
-    line-height:.95;
-    font-weight:800;
-    letter-spacing:-.04em;
+    display:block;
+    margin:4px 0 3px;
+    color:#161616;
+    font-size:38px;
+    line-height:1;
+    font-weight:900;
 }
 
-/* ============================================================
-   EVENT CONTENT
-   ============================================================ */
-
-.cfle-body{
+.cfle-card-body{
+    grid-area:body;
     min-width:0;
+    align-self:center;
 }
 
-.cfle-title{
-    display:inline-block;
-    margin:0 0 8px;
-    color:#342416;
-    font-family:Georgia,"Times New Roman",serif;
-    font-size:25px;
-    line-height:1.13;
-    font-weight:700;
-    text-decoration:none !important;
-    transition:color .16s ease;
-}
-
-.cfle-title:link,
-.cfle-title:visited,
-.cfle-title:hover,
-.cfle-title:active{
-    text-decoration:none !important;
-}
-
-.cfle-title:hover{
-    color:#a36b09;
-}
-
-.cfle-title--plain{
-    cursor:default;
-}
-
-.cfle-card.no-desc .cfle-title{
-    margin-bottom:10px;
-    font-size:27px;
-}
-
-.cfle-desc{
+.cfle-event-title{
     margin:0 0 9px;
-    color:#675744;
-    font-size:15px;
-    line-height:1.45;
+    font-size:24px;
+    line-height:1.2;
+    font-weight:900;
 }
 
-/* ============================================================
-   TAGS
-   ============================================================ */
+.cfle-event-title a{
+    color:#2c2419 !important;
+    text-decoration:none !important;
+}
+
+.cfle-event-title a:hover{
+    color:#9f6700 !important;
+}
 
 .cfle-tags{
     display:flex;
-    align-items:center;
     flex-wrap:wrap;
-    gap:6px;
-    margin:0 0 9px;
+    gap:7px;
+    margin:0 0 10px;
 }
 
 .cfle-tag{
     display:inline-flex;
     align-items:center;
-    min-height:25px;
-    padding:5px 11px;
-    border:1px solid #ddcba8;
+    min-height:27px;
+    padding:5px 10px;
     border-radius:999px;
-    background:#f8f4ec;
-    color:#65553e;
-    font-size:12px;
+    font-size:11px;
     line-height:1;
-    font-weight:800;
-    box-shadow:0 1px 3px rgba(0,0,0,.035);
+    font-weight:900;
+    letter-spacing:.04em;
+    text-transform:uppercase;
 }
 
 .cfle-tag--featured{
-    border-color:#c98d18;
-    background:linear-gradient(135deg,#e3b242,#c88710);
+    border:1px solid #d29a1d;
+    background:linear-gradient(135deg,#f8d66d,#d99b1d);
     color:#fff;
+    box-shadow:0 4px 10px rgba(190,127,12,.16);
 }
-
-.cfle-tag--holiday{
-    border-color:#e0b655;
-    background:#fff0c7;
-    color:#8b5d05;
-}
-
-.cfle-tag--youth{
-    border-color:#cdb8f2;
-    background:#eee5ff;
-    color:#64459a;
-}
-
-.cfle-tag--learning{
-    border-color:#c8d8ef;
-    background:#e8f1ff;
-    color:#3d6590;
-}
-
-.cfle-tag--recurring{
-    border-color:#b9cde3;
-    background:#e9f1f8;
-    color:#476987;
-}
-
-.cfle-tag--onetime{
-    border-color:#d5cec1;
-    background:#f5f2ed;
-    color:#655c50;
-}
-
-/* ============================================================
-   TIME AND LOCATION
-   ============================================================ */
 
 .cfle-meta{
     display:flex;
     align-items:center;
     flex-wrap:wrap;
-    gap:6px 12px;
-    color:#665744;
-    font-size:15px;
+    gap:8px;
+    color:#6f5a3b;
+    font-size:14px;
     line-height:1.35;
+    font-weight:700;
 }
 
 .cfle-meta-item{
     display:inline-flex;
     align-items:center;
     gap:6px;
+    min-width:0;
+    color:#6f5a3b !important;
+    text-decoration:none !important;
 }
 
-.cfle-meta-separator{
-    color:#c18a25;
-    font-size:18px;
-    font-weight:400;
+.cfle-location > span{
+    text-decoration:underline;
+    text-decoration-thickness:1px;
+    text-underline-offset:2px;
 }
 
-.cfle-meta-icon{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    flex:0 0 auto;
-    width:18px;
-    height:18px;
-    color:#b87b0e;
+.cfle-meta-divider{
+    color:#c6a86b;
 }
 
-.cfle-meta-icon svg{
+.cfle-meta-svg{
     display:block;
-    width:17px;
-    height:17px;
-    fill:none;
-    stroke:currentColor;
-    stroke-width:1.9;
-    stroke-linecap:round;
-    stroke-linejoin:round;
+    flex:0 0 auto;
+    width:20px;
+    height:20px;
+    color:var(--cfle-gold);
 }
 
-.cfle-location{
-    color:#a66e09;
-    font-weight:700;
-    text-decoration:none !important;
-    border-bottom:1px solid rgba(166,110,9,.45);
-}
-
-.cfle-location:link,
-.cfle-location:visited,
-.cfle-location:hover,
-.cfle-location:active{
-    text-decoration:none !important;
-}
-
-.cfle-location:hover{
-    color:#7d5000;
-    border-bottom-color:#7d5000;
+.cfle-pin-svg{
+    width:19px;
+    height:21px;
 }
 
 /* ============================================================
-   ACTION BUTTONS
+   ACTIONS
    ============================================================ */
 
-.cfle-actions{
+.cfle-event-actions{
+    grid-area:actions;
     display:grid;
-    grid-template-columns:1fr;
-    gap:8px;
-    align-items:stretch;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:10px;
     width:100%;
-    min-width:0;
+    margin-top:18px;
 }
 
-.cfle-action-btn,
-.cfle-detail-btn{
-    appearance:none;
-    -webkit-appearance:none;
+.cfle-action{
     display:flex;
     align-items:center;
     justify-content:center;
     gap:8px;
-    width:100%;
     min-width:0;
-    min-height:38px;
-    margin:0;
-    padding:8px 13px;
+    min-height:46px;
+    padding:10px 13px;
+    border:1px solid #d8c49d;
     border-radius:999px;
-    cursor:pointer;
+    background:#fff;
+    color:#3e3120 !important;
+    font-family:inherit;
     font-size:13px;
     line-height:1.1;
-    font-weight:800;
+    font-weight:900;
     text-align:center;
     text-decoration:none !important;
     white-space:nowrap;
-    transition:
-        transform .16s ease,
-        box-shadow .16s ease,
-        border-color .16s ease,
-        background .16s ease;
+    cursor:pointer;
+    overflow:visible;
+    transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease;
 }
 
-.cfle-action-btn:hover,
-.cfle-detail-btn:hover{
+.cfle-action span{
+    display:inline-block;
+    min-width:0;
+    overflow:visible;
+}
+
+.cfle-action:hover{
     transform:translateY(-1px);
+    border-color:#c8911f;
+    background:#fff9eb;
+    box-shadow:0 6px 14px rgba(112,72,8,.10);
 }
 
-.cfle-calendar-google{
-    border:1px solid #d8cab3;
-    background:#fff;
-    color:#4a3b28;
+.cfle-calendar-action{
+    width:100%;
 }
 
-.cfle-calendar-google:hover{
-    border-color:#c58e24;
-    box-shadow:0 4px 10px rgba(185,126,17,.1);
-}
-
-.cfle-calendar-apple{
-    border:1px solid #111;
-    background:#111;
-    color:#fff;
-}
-
-.cfle-calendar-apple:hover{
-    background:#292929;
-    border-color:#292929;
-    box-shadow:0 4px 11px rgba(0,0,0,.17);
-}
-
-.cfle-calendar-other{
-    border:1px solid #d7b66e;
-    background:#fffaf0;
-    color:#684b19;
-}
-
-.cfle-calendar-other:hover{
-    border-color:#bd8114;
-    background:#fff4db;
-}
-
-.cfle-detail-btn{
-    border:1px solid #c88a13;
-    background:linear-gradient(135deg,#e2ad39,#c98710);
-    color:#fff !important;
-    box-shadow:0 4px 10px rgba(182,120,9,.16);
-}
-
-.cfle-detail-btn:link,
-.cfle-detail-btn:visited,
-.cfle-detail-btn:hover,
-.cfle-detail-btn:active{
-    color:#fff !important;
-    text-decoration:none !important;
-}
-
-.cfle-detail-btn:hover{
-    box-shadow:0 6px 14px rgba(182,120,9,.24);
-}
-
-.cfle-action-icon{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    flex:0 0 auto;
-    width:18px;
-    height:18px;
-}
-
-.cfle-action-icon svg{
+.cfle-calendar-logo{
     display:block;
-    width:18px;
-    height:18px;
+    flex:0 0 auto;
+    width:23px;
+    height:23px;
 }
 
-/* Multicolored Google G */
+.cfle-apple-logo{
+    width:22px;
+    height:22px;
+}
 
-.cfle-google-g{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    width:18px;
-    height:18px;
-    font-family:Arial,Helvetica,sans-serif;
-    font-size:18px;
-    line-height:1;
-    font-weight:900;
-    background:conic-gradient(
-        from -45deg,
-        #4285f4 0deg 90deg,
-        #34a853 90deg 180deg,
-        #fbbc05 180deg 250deg,
-        #ea4335 250deg 360deg
-    );
-    -webkit-background-clip:text;
-    background-clip:text;
-    color:transparent;
+.cfle-generic-calendar-logo{
+    color:#bc7b08;
+}
+
+.cfle-view-action{
+    grid-column:1/-1;
+    border-color:#c58a16;
+    background:linear-gradient(135deg,#efc255,#d09118);
+    color:#fff !important;
+    font-size:14px;
+    box-shadow:0 7px 15px rgba(189,126,11,.18);
+}
+
+.cfle-view-action:hover{
+    background:linear-gradient(135deg,#f6d06d,#dc9b20);
+    color:#fff !important;
+}
+
+.cfle-event-actions--past{
+    grid-template-columns:1fr;
 }
 
 /* ============================================================
-   EMPTY STATE
+   EMPTY STATES
    ============================================================ */
 
 .cfle-empty{
-    padding:28px 20px;
-    border:1px dashed #d9bd84;
-    border-radius:15px;
-    background:#fffdf7;
-    text-align:center;
-}
-
-.cfle-empty strong{
-    display:block;
-    margin-bottom:6px;
-    color:#4a3823;
-    font-size:21px;
-}
-
-.cfle-empty span{
-    display:block;
-    color:#79674e;
-    font-size:15px;
-    line-height:1.45;
-}
-
-.cfle-reset-link{
-    display:inline-block;
-    margin-top:12px;
-    color:#9d6706;
-    font-weight:800;
-}
-
-/* ============================================================
-   ACCESSIBILITY
-   ============================================================ */
-
-.cfle-visually-hidden{
-    position:absolute !important;
-    width:1px !important;
-    height:1px !important;
-    margin:-1px !important;
-    padding:0 !important;
-    overflow:hidden !important;
-    clip:rect(0,0,0,0) !important;
-    white-space:nowrap !important;
-    border:0 !important;
-}
-
-/* ============================================================
-   TABLET
-   ============================================================ */
-
-@media (max-width:950px){
-
-    #cfle-events{
-        width:calc(100% - 28px);
-    }
-
-    .cfle-card{
-        grid-template-columns:86px minmax(0,1fr) 155px;
-        gap:14px;
-        padding:16px 15px;
-    }
-
-    .cfle-date-day{
-        font-size:39px;
-    }
-
-    .cfle-title{
-        font-size:23px;
-    }
-
-    .cfle-action-btn,
-    .cfle-detail-btn{
-        padding-left:9px;
-        padding-right:9px;
-        font-size:12px;
-    }
-}
-
-/* ============================================================
-   SMALL TABLET
-   ============================================================ */
-
-@media (max-width:760px){
-
-    #cfle-events{
-        width:calc(100% - 24px);
-        padding-top:23px;
-    }
-
-    #cfle-events .cfle-intro{
-        margin-bottom:20px;
-        padding:0 4px;
-        font-size:19px;
-        line-height:1.42;
-    }
-
-    .cfle-top-filters{
-        justify-content:flex-start;
-        gap:8px;
-    }
-
-    .cfle-filter-btn{
-        min-height:40px;
-        padding:9px 15px;
-        font-size:13px;
-    }
-
-    .cfle-toolbar{
-        align-items:flex-start;
-        flex-direction:column;
-        gap:10px;
-    }
-
-    .cfle-toolbar-right{
-        display:grid;
-        grid-template-columns:auto minmax(0,1fr);
-        width:100%;
-    }
-
-    .cfle-search-wrap{
-        width:100%;
-    }
-
-    .cfle-more-panel,
-    .cfle-more-panel.open{
-        grid-template-columns:1fr;
-        gap:15px;
-        padding:16px 13px;
-    }
-
-    .cfle-more-filter-divider{
-        width:100%;
-        height:1px;
-        min-height:1px;
-        background:linear-gradient(
-            to right,
-            rgba(206,158,65,0),
-            rgba(206,158,65,.75) 15%,
-            rgba(206,158,65,.75) 85%,
-            rgba(206,158,65,0)
-        );
-    }
-
-    .cfle-section-title{
-        font-size:28px;
-    }
-
-    .cfle-spot-grid{
-        grid-template-columns:1fr;
-    }
-
-    .cfle-spot-grid.count-3 .cfle-card:first-child{
-        grid-column:auto;
-    }
-
-    .cfle-card{
-        grid-template-columns:78px minmax(0,1fr);
-        gap:14px;
-        padding:15px 13px;
-    }
-
-    .cfle-date{
-        grid-column:1;
-        grid-row:1;
-        padding-right:12px;
-    }
-
-    .cfle-body{
-        grid-column:2;
-        grid-row:1;
-    }
-
-    .cfle-actions{
-        grid-column:1/-1;
-        grid-row:2;
-        display:grid;
-        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-        gap:8px;
-        padding-top:3px;
-    }
-
-    .cfle-actions .cfle-detail-btn{
-        grid-column:1/-1;
-    }
-
-    .cfle-action-btn,
-    .cfle-detail-btn{
-        width:100%;
-        min-width:0;
-        min-height:40px;
-        padding:9px 7px;
-        font-size:12px;
-    }
-
-    .cfle-title{
-        font-size:22px;
-    }
-
-    .cfle-card.no-desc .cfle-title{
-        font-size:24px;
-    }
-
-    .cfle-desc{
-        font-size:14px;
-    }
-
-    .cfle-meta{
-        font-size:14px;
-    }
-}
-
-/* ============================================================
-   PHONE
-   ============================================================ */
-
-@media (max-width:480px){
-
-    #cfle-events{
-        width:calc(100% - 20px);
-        padding:20px 0 45px;
-    }
-
-    #cfle-events .cfle-intro{
-        font-size:18px;
-        font-weight:800;
-    }
-
-    .cfle-toolbar-right{
-        grid-template-columns:1fr;
-    }
-
-    .cfle-more-btn{
-        width:100%;
-    }
-
-    .cfle-search-wrap{
-        width:100%;
-    }
-
-    .cfle-section-title{
-        font-size:27px;
-    }
-
-    .cfle-card{
-        grid-template-columns:68px minmax(0,1fr);
-        gap:11px;
-        padding:14px 11px;
-        border-radius:14px;
-    }
-
-    .cfle-date{
-        min-height:78px;
-        padding-right:10px;
-    }
-
-    .cfle-date-month,
-    .cfle-date-weekday{
-        font-size:13px;
-    }
-
-    .cfle-date-day{
-        font-size:37px;
-    }
-
-    .cfle-title{
-        font-size:20px;
-        line-height:1.13;
-    }
-
-    .cfle-card.no-desc .cfle-title{
-        font-size:22px;
-    }
-
-    .cfle-tag{
-        min-height:23px;
-        padding:4px 9px;
-        font-size:11px;
-    }
-
-    .cfle-meta{
-        gap:5px 8px;
-        font-size:13px;
-    }
-
-    .cfle-meta-separator{
-        font-size:15px;
-    }
-
-    .cfle-actions{
-        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-        gap:7px;
-    }
-
-    .cfle-action-btn,
-    .cfle-detail-btn{
-        min-height:39px;
-        padding:8px 5px;
-        border-radius:999px;
-        font-size:11px;
-    }
-
-    .cfle-detail-btn{
-        border-radius:999px;
-    }
-
-    .cfle-action-icon,
-    .cfle-action-icon svg,
-    .cfle-google-g{
-        width:16px;
-        height:16px;
-        font-size:16px;
-    }
-}
-
-/* Very narrow phones */
-
-@media (max-width:350px){
-
-    .cfle-action-btn,
-    .cfle-detail-btn{
-        font-size:10px;
-        letter-spacing:-.01em;
-    }
-
-    .cfle-action-btn{
-        gap:5px;
-    }
-}
-
-/* ============================================================
-   UPCOMING AT CHABAD — V5.1 FINISHING ADJUSTMENTS
-   ============================================================ */
-
-/* Force the selected section heading, such as “All,” to gold. */
-#cfle-events .cfle-section-title{
-    color:#b97c0d !important;
-}
-
-#cfle-events .cfle-section-title > small{
-    color:#846a45 !important;
-}
-
-/* Underline only the location words, not the map pin. */
-#cfle-events .cfle-location{
-    border-bottom:0 !important;
-    text-decoration:none !important;
-}
-
-#cfle-events .cfle-location > .cfle-nowrap{
-    display:inline-block;
-    border-bottom:1px solid rgba(166,110,9,.55);
-    line-height:1.15;
-}
-
-#cfle-events .cfle-location:hover > .cfle-nowrap{
-    border-bottom-color:#7d5000;
-}
-
-/* Sharper and more noticeable location pin. */
-#cfle-events .cfle-location-icon{
-    width:20px;
-    height:22px;
-    color:#b77908;
-}
-
-#cfle-events .cfle-location-icon svg{
-    width:20px;
-    height:22px;
-}
-
-#cfle-events .cfle-location-icon svg path{
-    fill:currentColor;
-    stroke:currentColor;
-    stroke-width:.6;
-}
-
-#cfle-events .cfle-location-icon svg circle{
-    fill:#fff;
-    stroke:none;
-}
-
-/* Larger, properly proportioned calendar-service logos. */
-#cfle-events .cfle-action-btn{
-    justify-content:flex-start;
-    padding-left:13px;
-    padding-right:13px;
-}
-
-#cfle-events .cfle-action-btn > span:last-child{
-    flex:1 1 auto;
-    padding-right:25px;
-    text-align:center;
-}
-
-#cfle-events .cfle-action-icon,
-#cfle-events .cfle-google-logo,
-#cfle-events .cfle-apple-logo{
-    flex:0 0 28px;
-    width:28px;
-    height:28px;
-}
-
-#cfle-events .cfle-action-icon svg,
-#cfle-events .cfle-google-logo svg,
-#cfle-events .cfle-apple-logo svg{
-    display:block;
-    width:28px;
-    height:28px;
-}
-
-#cfle-events .cfle-calendar-apple .cfle-apple-logo{
-    color:#fff;
-}
-
-/* The old CSS-generated Google letter is no longer used. */
-#cfle-events .cfle-google-g{
-    display:none !important;
-}
-
-/* ============================================================
-   MOBILE CENTERING AND THREE-OVER-TWO FILTER LAYOUT
-   ============================================================ */
-
-@media (max-width:480px){
-
-    /* Center the main filters. */
-    #cfle-events .cfle-top-filters{
-        display:grid;
-        grid-template-columns:repeat(6,minmax(0,1fr));
-        justify-content:center;
-        align-items:center;
-        gap:8px;
-        width:100%;
-        margin-left:auto;
-        margin-right:auto;
-    }
-
-    /* First row: All, Featured, Holidays. */
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(1){
-        grid-column:1/3;
-    }
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(2){
-        grid-column:3/5;
-    }
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(3){
-        grid-column:5/7;
-    }
-
-    /* Second row: Youth and Classes & Learning. */
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(4){
-        grid-column:2/4;
-    }
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(5){
-        grid-column:4/6;
-    }
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn{
-        width:100%;
-        min-width:0;
-        padding-left:7px;
-        padding-right:7px;
-        text-align:center;
-        white-space:nowrap;
-    }
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(5){
-        font-size:12px;
-    }
-
-    /* Center “17 upcoming programs.” */
-    #cfle-events .cfle-count{
-        width:100%;
-        text-align:center;
-    }
-
-    /* Center “All now showing” and Spotlight on phones. */
-    #cfle-events .cfle-section-title{
-        justify-content:center;
-        width:100%;
-        text-align:center;
-    }
-
-    #cfle-events .cfle-subtle{
-        text-align:center;
-    }
-
-    /* Keep the larger logos while retaining compact mobile pills. */
-    #cfle-events .cfle-action-btn{
-        min-height:43px;
-        padding-left:9px;
-        padding-right:9px;
-    }
-
-    #cfle-events .cfle-action-btn > span:last-child{
-        padding-right:18px;
-        font-size:10.5px;
-    }
-
-    #cfle-events .cfle-action-icon,
-    #cfle-events .cfle-google-logo,
-    #cfle-events .cfle-apple-logo,
-    #cfle-events .cfle-action-icon svg,
-    #cfle-events .cfle-google-logo svg,
-    #cfle-events .cfle-apple-logo svg{
-        width:24px;
-        height:24px;
-        flex-basis:24px;
-    }
-}
-
-@media (max-width:480px){
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(4){
-        grid-column:1/3;
-    }
-
-    #cfle-events .cfle-top-filters .cfle-filter-btn:nth-child(5){
-        grid-column:3/7;
-        font-size:12px;
-        padding-left:10px;
-        padding-right:10px;
-    }
-}
-/* Pull the events content closer to the hero image */
-#cfle-events{
-    padding-top:15px;
-}
-
-@media (max-width:480px){
-    #cfle-events{
-        padding-top:10px;
-    }
-}
-
-/* ============================================================
-   AUTOMATIC EVENT DETAIL VIEW — APPEND TO BOTTOM OF events.css
-   ============================================================ */
-
-#cfle-events .cfle-event-detail{
-    max-width:980px;
-    margin:0 auto;
-    padding:10px 16px 40px;
-    box-sizing:border-box;
-}
-
-#cfle-events .cfle-event-detail-back{
-    display:inline-block;
-    margin:0 0 18px;
-    color:#7a5a00;
-    font-size:15px;
-    font-weight:800;
-    text-decoration:none;
-}
-
-#cfle-events .cfle-event-detail-back:hover{
-    text-decoration:underline;
-}
-
-#cfle-events .cfle-event-detail-card{
-    display:grid;
-    grid-template-columns:120px minmax(0,1fr);
-    gap:28px;
-    padding:32px;
-    border:2px solid #e5a900;
-    border-radius:22px;
-    background:#fff;
-    box-shadow:0 14px 38px rgba(0,0,0,.11);
-}
-
-#cfle-events .cfle-event-detail-date{
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    align-self:start;
-    min-height:132px;
+    gap:5px;
+    min-height:130px;
+    padding:26px;
+    border:1px dashed #d8bd87;
     border-radius:18px;
-    background:linear-gradient(180deg,#fffaf0,#fff);
-    border:1px solid rgba(229,169,0,.35);
+    background:#fffaf0;
+    color:#6c5940;
     text-align:center;
-    box-shadow:0 7px 20px rgba(229,169,0,.12);
 }
 
-#cfle-events .cfle-event-detail-date span{
-    color:#b47d00;
+.cfle-empty strong{
+    color:#4a3822;
     font-size:18px;
-    line-height:1;
-    font-weight:900;
-    letter-spacing:.08em;
-    text-transform:uppercase;
 }
 
-#cfle-events .cfle-event-detail-date strong{
-    display:block;
-    margin:7px 0 4px;
-    color:#111;
-    font-size:52px;
-    line-height:.95;
-    font-weight:900;
-}
-
-#cfle-events .cfle-event-detail-date small{
-    color:#786a48;
+.cfle-empty span{
     font-size:14px;
-    font-weight:800;
-}
-
-#cfle-events .cfle-event-detail-main h1{
-    margin:10px 0 14px;
-    color:#111;
-    font-size:38px;
-    line-height:1.12;
-    font-weight:900;
-}
-
-#cfle-events .cfle-event-detail-meta{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px 18px;
-    align-items:center;
-    margin-bottom:26px;
-    color:#4f493a;
-    font-size:16px;
-    line-height:1.45;
-}
-
-#cfle-events .cfle-event-detail-meta strong,
-#cfle-events .cfle-event-detail-meta span,
-#cfle-events .cfle-event-detail-location{
-    display:inline-block;
-}
-
-#cfle-events .cfle-event-detail-location{
-    color:#7a5a00;
-    font-weight:700;
-    text-decoration:none;
-}
-
-#cfle-events .cfle-event-detail-location:hover{
-    text-decoration:underline;
-}
-
-#cfle-events .cfle-event-detail-description{
-    margin:0 0 28px;
-    color:#262626;
-    font-size:18px;
-    line-height:1.7;
-}
-
-#cfle-events .cfle-event-detail-actions{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    align-items:center;
-}
-
-#cfle-events .cfle-event-detail-actions .cfle-action-btn{
-    min-height:42px;
-}
-
-#cfle-events .cfle-native-detail-link{
-    display:inline-flex;
-    align-items:center;
-    min-height:42px;
-    padding:8px 14px;
-    box-sizing:border-box;
-    color:#665000;
-    font-size:14px;
-    font-weight:800;
-    text-decoration:none;
-}
-
-#cfle-events .cfle-native-detail-link:hover{
-    text-decoration:underline;
-}
-
-@media (max-width:700px){
-
-    #cfle-events .cfle-event-detail{
-        padding:6px 10px 30px;
-    }
-
-    #cfle-events .cfle-event-detail-card{
-        grid-template-columns:1fr;
-        gap:20px;
-        padding:20px 17px;
-        border-radius:17px;
-    }
-
-    #cfle-events .cfle-event-detail-date{
-        width:108px;
-        min-height:108px;
-        margin:0 auto;
-    }
-
-    #cfle-events .cfle-event-detail-date strong{
-        font-size:43px;
-    }
-
-    #cfle-events .cfle-event-detail-main h1{
-        font-size:30px;
-        text-align:center;
-    }
-
-    #cfle-events .cfle-event-detail-main > .cfle-tags{
-        text-align:center;
-    }
-
-    #cfle-events .cfle-event-detail-meta{
-        justify-content:center;
-        text-align:center;
-        font-size:15px;
-    }
-
-    #cfle-events .cfle-event-detail-description{
-        font-size:17px;
-        line-height:1.65;
-    }
-
-    #cfle-events .cfle-event-detail-actions{
-        display:grid;
-        grid-template-columns:1fr 1fr;
-    }
-
-    #cfle-events .cfle-native-detail-link{
-        grid-column:1/3;
-        justify-content:center;
-        text-align:center;
-    }
-}
-
-
-/* ============================================================
-   VERSION 6.2 FINAL — DETAIL PAGE AND ICON SAFEGUARDS
-   ============================================================ */
-
-#cfle-events.cfle-detail-mode{
-    padding-top:10px !important;
-}
-
-#cfle-events .cfle-event-detail-main{
-    min-width:0;
-}
-
-#cfle-events .cfle-event-detail-main h1{
-    overflow-wrap:anywhere;
-    word-wrap:break-word;
-}
-
-/* Keep the clock and pointed location pin in the same gold system. */
-#cfle-events .cfle-event-detail-meta .cfle-meta-icon,
-#cfle-events .cfle-event-detail-meta .cfle-location-icon{
-    color:#b77908 !important;
-}
-
-/* Underline only the location wording, never the pin itself. */
-#cfle-events .cfle-event-detail-location,
-#cfle-events .cfle-event-detail-location:hover{
-    text-decoration:none !important;
-}
-
-#cfle-events .cfle-event-detail-location > .cfle-nowrap{
-    display:inline-block;
-    border-bottom:1px solid rgba(166,110,9,.55);
-    line-height:1.15;
-}
-
-#cfle-events .cfle-event-detail-location:hover > .cfle-nowrap{
-    border-bottom-color:#7d5000;
-}
-
-/* Preserve the larger Google / Apple / generic calendar logos in detail mode. */
-#cfle-events .cfle-event-detail-actions .cfle-action-icon,
-#cfle-events .cfle-event-detail-actions .cfle-google-logo,
-#cfle-events .cfle-event-detail-actions .cfle-apple-logo,
-#cfle-events .cfle-event-detail-actions .cfle-action-icon svg,
-#cfle-events .cfle-event-detail-actions .cfle-google-logo svg,
-#cfle-events .cfle-event-detail-actions .cfle-apple-logo svg{
-    width:28px !important;
-    height:28px !important;
-    flex-basis:28px !important;
-}
-
-#cfle-events .cfle-event-detail-actions .cfle-action-btn{
-    max-width:270px;
-}
-
-@media (max-width:700px){
-
-    #cfle-events.cfle-detail-mode{
-        padding-top:4px !important;
-    }
-
-    #cfle-events .cfle-event-detail-actions .cfle-action-btn{
-        max-width:none;
-    }
-
-    #cfle-events .cfle-event-detail-actions .cfle-action-icon,
-    #cfle-events .cfle-event-detail-actions .cfle-google-logo,
-    #cfle-events .cfle-event-detail-actions .cfle-apple-logo,
-    #cfle-events .cfle-event-detail-actions .cfle-action-icon svg,
-    #cfle-events .cfle-event-detail-actions .cfle-google-logo svg,
-    #cfle-events .cfle-event-detail-actions .cfle-apple-logo svg{
-        width:24px !important;
-        height:24px !important;
-        flex-basis:24px !important;
-    }
 }
 
 /* ============================================================
-   VERSION 7.0 — PAGE-DRIVEN EVENT SOURCE
+   HIDE NATIVE INDEX ENTRIES AFTER PARSING
    ============================================================ */
 
-.cfle-native-index-source{
+.cfle-native-event-source{
     display:none !important;
 }
 
-#cfle-events .cfle-calendar-buttons{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:8px;
-    width:100%;
-}
-
-#cfle-events .cfle-calendar-buttons .cfle-action-btn{
-    min-width:0;
-}
-
 /* ============================================================
-   HOMEPAGE PAGE-DRIVEN UPCOMING EVENTS
+   HOMEPAGE WIDGET
    ============================================================ */
 
-.cfle-home-events-module{
-    min-width:0;
+.chabad_updates.cfle-home-events-widget,
+.chabad_updates.cfle-home-events-widget > div,
+.chabad_updates.cfle-home-events-widget .message_format,
+.chabad_updates.cfle-home-events-widget .bottom_padding{
+    position:relative !important;
+    overflow:visible !important;
+    width:100% !important;
+    max-width:none !important;
+    margin:0 !important;
+    padding:0 !important;
+    border:0 !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    background-image:none !important;
+    box-shadow:none !important;
 }
 
-.cfle-home-events{
+.chabad_updates.cfle-home-events-widget::before,
+.chabad_updates.cfle-home-events-widget::after,
+.chabad_updates.cfle-home-events-widget > div::before,
+.chabad_updates.cfle-home-events-widget > div::after{
+    content:none !important;
+    display:none !important;
+    background:none !important;
+}
+
+.cfle-home-events-shell{
+    position:relative;
     width:100%;
-    max-width:360px;
-    margin:0 auto;
-    text-align:center;
+    padding:24px 20px 20px;
+    border:1px solid #ead8b5;
+    border-radius:20px;
+    background:linear-gradient(145deg,#fffdf8 0%,#fff8e9 100%);
+    box-shadow:0 14px 34px rgba(89,59,9,.10);
 }
 
-.cfle-home-events-title{
-    margin:0 0 15px !important;
-    color:#e5a900 !important;
-    font-family:Arial,Helvetica,sans-serif !important;
-    font-size:14px !important;
-    line-height:1.2 !important;
-    font-weight:900 !important;
-    letter-spacing:.08em !important;
-    text-transform:uppercase !important;
+.cfle-home-events-heading{
+    margin:0 0 15px;
+    color:#2e2519;
+    font-size:27px;
+    line-height:1.15;
+    font-weight:900;
+    text-align:left;
 }
 
 .cfle-home-events-list{
     display:flex;
     flex-direction:column;
-    align-items:stretch;
-    gap:11px;
-    margin:0 0 15px;
+    gap:9px;
 }
 
 .cfle-home-event{
-    display:block;
-    padding:0 4px;
-    color:#1e5e9e !important;
-    text-align:center;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:
+        "date arrow"
+        "title arrow";
+    align-items:center;
+    gap:2px 12px;
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #e7d2a8;
+    border-radius:14px;
+    background:#fff;
+    color:#2e2519 !important;
     text-decoration:none !important;
+    box-shadow:0 5px 14px rgba(83,54,8,.055);
+    transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease;
 }
 
-.cfle-home-event:hover,
-.cfle-home-event:focus{
-    color:#124778 !important;
-    text-decoration:none !important;
+.cfle-home-event:hover{
+    transform:translateY(-2px);
+    border-color:#d9a52f;
+    background:#fffdf6;
+    box-shadow:0 9px 20px rgba(91,58,7,.10);
 }
 
 .cfle-home-event-date{
+    grid-area:date;
     display:block;
-    margin:0 0 2px;
-    color:#8b7961;
-    font-size:11px;
-    line-height:1.3;
-    font-weight:500;
-}
-
-.cfle-home-event strong{
-    display:block;
-    color:inherit;
+    color:#b17408;
     font-size:13px;
     line-height:1.25;
-    font-weight:800;
+    font-weight:900;
+    letter-spacing:.01em;
 }
 
-.cfle-home-view-more{
+.cfle-home-event-title{
+    grid-area:title;
+    display:block;
+    color:#2e2519;
+    font-size:19px;
+    line-height:1.2;
+    font-weight:900;
+}
+
+.cfle-home-event-arrow{
+    grid-area:arrow;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    background:linear-gradient(135deg,#efc457,#ca8d18);
+    color:#fff;
+    font-size:18px;
+    font-weight:900;
+}
+
+.cfle-home-events-more{
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    min-height:30px;
-    padding:6px 11px;
-    border:2px solid #e5a900;
-    color:#1f5f9f !important;
-    background:transparent;
-    font-size:10px;
-    line-height:1.1;
+    min-height:42px;
+    margin-top:14px;
+    padding:9px 20px;
+    border-radius:999px;
+    background:#2f261a;
+    color:#fff !important;
+    font-size:14px;
+    line-height:1;
     font-weight:900;
-    letter-spacing:.03em;
     text-decoration:none !important;
-    text-transform:uppercase;
-    transition:background .18s ease,color .18s ease,transform .18s ease;
 }
 
-.cfle-home-view-more:hover,
-.cfle-home-view-more:focus{
-    background:#e5a900;
+.cfle-home-events-more:hover{
+    background:#b77708;
     color:#fff !important;
-    transform:translateY(-1px);
-    text-decoration:none !important;
 }
 
 .cfle-home-events-empty{
-    margin:0 0 14px;
-    color:#7d6e5a;
-    font-size:12px;
-    line-height:1.4;
-}
-
-/* ============================================================
-   PAST EVENTS PAGE
-   ============================================================ */
-
-#cfle-past-events{
-    width:calc(100% - 40px);
-    max-width:1180px;
-    margin:0 auto;
-    padding:20px 0 65px;
-    box-sizing:border-box;
-    color:#332718;
-    font-family:Arial,Helvetica,sans-serif;
-}
-
-#cfle-past-events *{
-    box-sizing:border-box;
-}
-
-#cfle-past-events .cfle-list{
-    display:flex;
-    flex-direction:column;
-    gap:13px;
-}
-
-#cfle-past-events .cfle-card{
-    display:grid;
-    grid-template-columns:105px minmax(0,1fr) 175px;
-    align-items:center;
-    gap:18px;
-    min-width:0;
-    padding:17px;
-    border:1px solid #d8b86d;
-    border-radius:16px;
-    background:#fff;
-    box-shadow:0 7px 20px rgba(91,61,10,.08);
-}
-
-#cfle-past-events .cfle-date{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    min-height:94px;
-    padding:10px;
-    border:1px solid #dfbf76;
+    padding:18px;
+    border:1px dashed #d9bc82;
     border-radius:14px;
-    background:#fffaf0;
+    color:#6e5a3d;
+    font-size:15px;
+    font-weight:700;
     text-align:center;
 }
 
-#cfle-past-events .cfle-date-month,
-#cfle-past-events .cfle-date-weekday{
-    color:#b67808;
-    font-size:13px;
-    line-height:1.1;
-    font-weight:900;
-    letter-spacing:.06em;
-    text-transform:uppercase;
-}
+/* ============================================================
+   PAST EVENTS
+   ============================================================ */
 
-#cfle-past-events .cfle-date-day{
-    margin:3px 0;
-    color:#111;
-    font-size:37px;
-    line-height:1;
-    font-weight:900;
-}
-
-#cfle-past-events .cfle-body{
-    min-width:0;
-}
-
-#cfle-past-events .cfle-title{
-    display:inline-block;
-    margin:0 0 7px;
-    color:#1e5e9e !important;
-    font-family:Georgia,"Times New Roman",serif;
-    font-size:25px;
-    line-height:1.2;
-    font-weight:700;
-    text-decoration:none !important;
-}
-
-#cfle-past-events .cfle-title:hover{
-    color:#123f6b !important;
-}
-
-#cfle-past-events .cfle-tags{
-    display:flex;
-    flex-wrap:wrap;
-    gap:6px;
-    margin:0 0 8px;
-}
-
-#cfle-past-events .cfle-meta{
-    display:flex;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:6px 12px;
-    color:#665744;
-    font-size:14px;
-}
-
-#cfle-past-events .cfle-actions{
-    width:100%;
-}
-
-#cfle-past-events .cfle-detail-btn{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:100%;
-    min-height:39px;
-    padding:8px 13px;
-    border:1px solid #c88a13;
-    border-radius:999px;
-    background:linear-gradient(135deg,#e2ad39,#c98710);
-    color:#fff !important;
-    font-size:13px;
-    line-height:1.1;
+.cfle-past-intro{
+    margin:0 0 16px;
+    color:#6e5a3d;
+    font-size:17px;
+    line-height:1.4;
     font-weight:800;
-    text-decoration:none !important;
 }
 
-@media (max-width:700px){
-    #cfle-events .cfle-calendar-buttons{
-        grid-template-columns:repeat(2,minmax(0,1fr));
+.cfle-grid--past .cfle-card{
+    opacity:.96;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width:900px){
+    .cfle-grid{
+        grid-template-columns:1fr;
     }
 
+    .cfle-toolbar{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+
+    .cfle-toolbar-right{
+        width:100%;
+    }
+
+    .cfle-search-wrap{
+        flex:1 1 auto;
+        width:auto;
+    }
+}
+
+@media (max-width:600px){
+    #cfle-events,
     #cfle-past-events{
-        width:calc(100% - 20px);
+        width:calc(100% - 22px);
+    }
+
+    #cfle-events{
         padding-top:10px;
     }
 
-    #cfle-past-events .cfle-card{
-        grid-template-columns:82px minmax(0,1fr);
-        gap:12px;
-        padding:13px;
+    #cfle-events .cfle-intro{
+        margin-bottom:18px;
+        padding:0 4px;
+        font-size:17px;
+        line-height:1.4;
     }
 
-    #cfle-past-events .cfle-date{
-        min-height:82px;
-        padding:8px;
+    .cfle-toolbar{
+        gap:10px;
     }
 
-    #cfle-past-events .cfle-date-day{
+    .cfle-count{
+        width:100%;
+        text-align:center;
+    }
+
+    .cfle-toolbar-right{
+        display:grid;
+        grid-template-columns:auto minmax(0,1fr);
+        gap:8px;
+    }
+
+    .cfle-filter-toggle{
+        padding-left:13px;
+        padding-right:13px;
+    }
+
+    .cfle-search-wrap{
+        width:100%;
+        min-width:0;
+    }
+
+    .cfle-date-panel{
+        padding:14px 10px;
+    }
+
+    .cfle-chip-btn{
+        padding-left:12px;
+        padding-right:12px;
+        font-size:12px;
+    }
+
+    .cfle-section-title{
+        font-size:23px;
+        text-align:center;
+    }
+
+    .cfle-card{
+        grid-template-columns:72px minmax(0,1fr);
+        gap:0 13px;
+        padding:15px;
+        border-radius:17px;
+    }
+
+    .cfle-date{
+        width:72px;
+        min-height:98px;
+        padding:9px 5px;
+        border-radius:14px;
+    }
+
+    .cfle-date-day{
         font-size:32px;
     }
 
-    #cfle-past-events .cfle-title{
-        font-size:21px;
+    .cfle-date-month,
+    .cfle-date-weekday{
+        font-size:11px;
     }
 
-    #cfle-past-events .cfle-actions{
-        grid-column:1/-1;
+    .cfle-event-title{
+        font-size:20px;
+    }
+
+    .cfle-meta{
+        align-items:flex-start;
+        flex-direction:column;
+        gap:6px;
+        font-size:13px;
+    }
+
+    .cfle-meta-divider{
+        display:none;
+    }
+
+    .cfle-event-actions{
+        gap:8px;
+        margin-top:15px;
+    }
+
+    .cfle-action{
+        min-height:44px;
+        padding:9px 7px;
+        font-size:11.5px;
+        letter-spacing:-.01em;
+    }
+
+    .cfle-calendar-logo{
+        width:21px;
+        height:21px;
+    }
+
+    .cfle-view-action{
+        font-size:13px;
+    }
+
+    .cfle-home-events-shell{
+        padding:19px 12px 15px;
+        border-radius:17px;
+    }
+
+    .cfle-home-events-heading{
+        font-size:24px;
+        text-align:center;
+    }
+
+    .cfle-home-event{
+        padding:12px;
+    }
+
+    .cfle-home-event-date{
+        font-size:12px;
+    }
+
+    .cfle-home-event-title{
+        font-size:17px;
+    }
+}
+
+@media (max-width:390px){
+    .cfle-card{
+        grid-template-columns:64px minmax(0,1fr);
+        gap:0 10px;
+        padding:13px;
+    }
+
+    .cfle-date{
+        width:64px;
+    }
+
+    .cfle-action{
+        font-size:10.8px;
+        padding-left:5px;
+        padding-right:5px;
+    }
+
+    .cfle-calendar-logo{
+        width:19px;
+        height:19px;
     }
 }
