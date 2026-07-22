@@ -8,7 +8,7 @@ window.CFLE_PAGE_EVENTS_V80_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"8.0.11",
+    version:"8.0.12",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -22,7 +22,7 @@ var CFG={
         title:"Lox & Learn",
         url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
         calendarFeedUrl:"/templates/events.htm",
-        cacheKey:"cfleCalendarLoxV811",
+        cacheKey:"cfleCalendarLoxV812",
         cacheMs:21600000,
         startHour:10,
         startMinute:0,
@@ -985,75 +985,117 @@ function calendarFeedTime(item){
 function parseCalendarLoxHtml(html){
     var parser=new DOMParser();
     var doc=parser.parseFromString(html,"text/html");
-    var items=qsa(".category_item",doc);
+    var collections=qsa(
+        ".category_collection.list_item",
+        doc
+    );
     var matches=[];
 
-    items.forEach(function(item){
-        var parent=item.parentNode;
-        var dateNode=parent?
-            qs(".date_stamp .date",parent):
-            null;
-        var titleNode=
-            qs(".event_wrapper .event_name",item)||
-            qs(".event_name",item);
-        var titleText=oneLine(
-            titleNode?
-                (titleNode.textContent||titleNode.innerText||""):
-                ""
+    /*
+     * ChabadOne places the Gregorian date in the surrounding
+     * category_collection, while each individual event lives
+     * inside its own category_item.  Read the date from the
+     * complete collection text instead of depending on one
+     * fragile date-element selector.
+     */
+    collections.forEach(function(collection){
+        var collectionText=oneLine(
+            collection.textContent||
+            collection.innerText||
+            ""
         );
-        var dateText=oneLine(
+        var dateNode=qs(
+            ".date_stamp .date",
+            collection
+        );
+        var datePart=parseDatePart(
             dateNode?
                 (dateNode.textContent||dateNode.innerText||""):
-                ""
+                collectionText
         );
-        var timeText=calendarFeedTime(item);
-        var dateInfo;
-        var locationLink;
-        var locationText;
+        var items;
 
-        if(normalized(titleText)!==normalized(CFG.lox.title)){
+        if(!datePart){
+            datePart=parseDatePart(collectionText);
+        }
+
+        if(!datePart){
             return;
         }
 
-        dateInfo=parseEventDateTime(
-            dateText+
-            (timeText?", "+timeText:"")
+        items=qsa(
+            ".category_item",
+            collection
         );
 
-        if(!dateInfo||!isUpcoming({endTs:dateInfo.endTs})){
-            return;
-        }
+        items.forEach(function(item){
+            var titleNode=
+                qs(".event_wrapper .event_name",item)||
+                qs(".event_name",item);
+            var titleText=oneLine(
+                titleNode?
+                    (titleNode.textContent||titleNode.innerText||""):
+                    ""
+            );
+            var timeText=calendarFeedTime(item);
+            var dateInfo;
+            var locationLink;
+            var locationText;
+            var dateSource;
 
-        locationLink=qs(
-            '.event_info a[href*="maps.google.com"],'+
-            '.event_info a[href*="google.com/maps"]',
-            item
-        );
+            if(normalized(titleText)!==normalized(CFG.lox.title)){
+                return;
+            }
 
-        locationText=locationLink?
-            oneLine(locationLink.textContent||locationLink.innerText||""):
-            CFG.defaultLocation;
+            dateSource=
+                monthName(datePart.month)+
+                " "+
+                datePart.day+
+                " "+
+                datePart.year+
+                (timeText?", "+timeText:"");
 
-        matches.push({
-            id:"calendar-lox-learn-"+dateInfo.startTs,
-            title:CFG.lox.title,
-            url:absoluteUrl(CFG.lox.url),
-            startTs:dateInfo.startTs,
-            endTs:dateInfo.endTs,
-            startParts:dateInfo.startParts,
-            endParts:dateInfo.endParts,
-            allDay:dateInfo.allDay,
-            time:dateInfo.time,
-            date:dateInfo.date,
-            location:{
-                text:locationText||CFG.defaultLocation,
-                name:"Chabad of Fort Lee"
-            },
-            homepage:CFG.lox.homepage,
-            upcoming:CFG.lox.upcoming,
-            featured:false,
-            recurring:true,
-            sourceContainer:null
+            dateInfo=parseEventDateTime(dateSource);
+
+            if(!dateInfo||!isUpcoming({endTs:dateInfo.endTs})){
+                return;
+            }
+
+            locationLink=qs(
+                '.event_info a[href*="maps.google.com"],'+
+                '.event_info a[href*="google.com/maps"]',
+                item
+            );
+
+            locationText=locationLink?
+                oneLine(
+                    locationLink.textContent||
+                    locationLink.innerText||
+                    ""
+                ):
+                CFG.defaultLocation;
+
+            matches.push({
+                id:"calendar-lox-learn-"+dateInfo.startTs,
+                title:CFG.lox.title,
+                url:absoluteUrl(CFG.lox.url),
+                startTs:dateInfo.startTs,
+                endTs:dateInfo.endTs,
+                startParts:dateInfo.startParts,
+                endParts:dateInfo.endParts,
+                allDay:dateInfo.allDay,
+                time:dateInfo.time,
+                date:dateInfo.date,
+                location:{
+                    text:locationText||CFG.defaultLocation,
+                    name:"Chabad of Fort Lee"
+                },
+                homepage:CFG.lox.homepage,
+                upcoming:CFG.lox.upcoming,
+                featured:false,
+                recurring:true,
+                sourceContainer:null
+            });
         });
     });
 
