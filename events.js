@@ -1,3 +1,4 @@
+
 (function(){
 "use strict";
 
@@ -8,23 +9,23 @@ window.CFLE_PAGE_EVENTS_V80_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"8.0.0",
+    version:"8.0.9",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
     parentAid:"7437974",
     cacheKey:"cflePageEventsV800",
     cacheMs:300000,
-    homepageLimit:5,
+    homepageLimit:4,
     defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
     lox:{
         enabled:true,
         title:"Lox & Learn",
         url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
-        weekday:0,
-        startHour:10,
-        startMinute:0,
-        durationMinutes:60,
+        calendarDayUrl:"/calendar/view/day.asp",
+        searchWeeks:8,
+        cacheKey:"cfleCalendarLoxV809",
+        cacheMs:21600000,
         homepage:true,
         upcoming:true
     }
@@ -32,6 +33,9 @@ var CFG={
 
 var state={
     events:[],
+    baseEvents:[],
+    calendarLox:null,
+    calendarLoxRequested:false,
     search:"",
     range:"all",
     bound:false,
@@ -751,6 +755,16 @@ function parsePlacement(text){
         placement.recognized=true;
     }
 
+    /*
+     * A featured event always belongs at the top of both
+     * the Upcoming page and the homepage, even if one of
+     * those two lines was accidentally set to No.
+     */
+    if(placement.featured){
+        placement.homepage=true;
+        placement.upcoming=true;
+    }
+
     return placement;
 }
 
@@ -932,84 +946,260 @@ function getNewYorkNowParts(){
     }
 }
 
-function nextWeekdayParts(weekday,hour,minute){
+function firstCalendarSundayParts(){
     var nowParts=getNewYorkNowParts();
-    var todayUtc=new Date(Date.UTC(nowParts.year,nowParts.month-1,nowParts.day));
+    var todayUtc=new Date(
+        Date.UTC(
+            nowParts.year,
+            nowParts.month-1,
+            nowParts.day
+        )
+    );
     var todayWeekday=todayUtc.getUTCDay();
-    var add=(weekday-todayWeekday+7)%7;
-    var candidate=addDaysToParts({
+    var daysUntilSunday=(7-todayWeekday)%7;
+
+    return addDaysToParts({
         year:nowParts.year,
         month:nowParts.month,
         day:nowParts.day,
-        hour:hour,
-        minute:minute
-    },add);
-
-    if(add===0&&timestampFromParts(candidate)<=timestampFromParts(nowParts)){
-        candidate=addDaysToParts(candidate,7);
-    }
-    return candidate;
+        hour:0,
+        minute:0
+    },daysUntilSunday);
 }
 
-function buildLoxEvent(){
-    var startParts;
-    var endParts;
-    var date;
+function calendarDayRequestUrl(parts){
+    var cacheWindow=Math.floor(Date.now()/300000);
+    var dateValue=
+        parts.month+"/"+
+        parts.day+"/"+
+        parts.year;
+
+    return CFG.lox.calendarDayUrl+
+        "?tdate="+
+        encodeURIComponent(dateValue)+
+        "&cfle_lox_calendar="+
+        cacheWindow;
+}
+
+function parseCalendarLoxHtml(html){
+    var parser=new DOMParser();
+    var doc=parser.parseFromString(html,"text/html");
+    var titles=qsa(".event.mosad.title",doc);
+    var matches=[];
+
+    titles.forEach(function(title){
+        var titleText=oneLine(
+            title.getAttribute("data-title")||
+            title.getAttribute("data-long-title")||
+            title.textContent||
+            ""
+        );
+        var item;
+        var datedContainer;
+        var dateText;
+        var timeElement;
+        var timeText;
+        var dateInfo;
+        var locationLink;
+        var locationText;
+
+        if(normalized(titleText)!==normalized(CFG.lox.title)){
+            return;
+        }
+
+        item=closestBySelector(title,".category_item")||title.parentNode;
+        datedContainer=closestBySelector(title,"[date]");
+
+        dateText=oneLine(
+            title.getAttribute("date")||
+            (datedContainer?datedContainer.getAttribute("date"):"")||
+            ""
+        );
+
+        timeElement=item?qs(".time",item):null;
+        timeText=oneLine(
+            (timeElement?timeElement.textContent:"")||
+            (item&&item.getAttribute?item.getAttribute("title"):"")||
+            ""
+        );
+
+        dateInfo=parseEventDateTime(
+            dateText+
+            (timeText?", "+timeText:"")
+        );
+
+        if(!dateInfo||!isUpcoming({endTs:dateInfo.endTs})){
+            return;
+        }
+
+        locationLink=item?
+            qs(
+                '.description a[href*="maps.google"],'+
+                '.description a[href*="google.com/maps"]',
+                item
+            ):
+            null;
+
+        locationText=locationLink?
+            oneLine(locationLink.textContent||""):
+            CFG.defaultLocation;
+
+        matches.push({
+            id:"calendar-lox-learn-"+dateInfo.startTs,
+            title:CFG.lox.title,
+            url:absoluteUrl(CFG.lox.url),
+            startTs:dateInfo.startTs,
+            endTs:dateInfo.endTs,
+            startParts:dateInfo.startParts,
+            endParts:dateInfo.endParts,
+            allDay:dateInfo.allDay,
+            time:dateInfo.time,
+            date:dateInfo.date,
+            location:{
+                text:locationText||CFG.defaultLocation,
+                name:"Chabad of Fort Lee"
+            },
+            homepage:CFG.lox.homepage,
+            upcoming:CFG.lox.upcoming,
+            featured:false,
+            recurring:true,
+            sourceContainer:null
+        });
+    });
+
+    matches.sort(function(first,second){
+        return first.startTs-second.startTs;
+    });
+
+    return matches.length?matches[0]:null;
+}
+
+function requestCalendarLox(callback){
+    var firstSunday;
+    var weekIndex=0;
+    var successfulRequests=0;
+
     if(!CFG.lox.enabled){
-        return null;
+        callback(null,null);
+        return;
     }
-    startParts=nextWeekdayParts(CFG.lox.weekday,CFG.lox.startHour,CFG.lox.startMinute);
-    endParts=addDaysToParts(startParts,0);
-    endParts.hour=startParts.hour+Math.floor((startParts.minute+CFG.lox.durationMinutes)/60);
-    endParts.minute=(startParts.minute+CFG.lox.durationMinutes)%60;
-    date={
-        year:startParts.year,
-        month:monthName(startParts.month),
-        monthNumber:startParts.month,
-        day:startParts.day,
-        weekday:weekdayNameFromYmd(startParts.year,startParts.month,startParts.day),
-        label:weekdayNameFromYmd(startParts.year,startParts.month,startParts.day)+", "+monthName(startParts.month)+" "+startParts.day+", "+startParts.year
-    };
-    return {
-        id:"page-lox-learn-"+timestampFromParts(startParts),
-        title:CFG.lox.title,
-        url:absoluteUrl(CFG.lox.url),
-        startTs:timestampFromParts(startParts),
-        endTs:timestampFromParts(endParts),
-        startParts:startParts,
-        endParts:endParts,
-        allDay:false,
-        time:formatClockParts(startParts)+" - "+formatClockParts(endParts),
-        date:date,
-        location:{
-            text:CFG.defaultLocation,
-            name:"Chabad of Fort Lee"
-        },
-        homepage:CFG.lox.homepage,
-        upcoming:CFG.lox.upcoming,
-        featured:false,
-        recurring:true,
-        sourceContainer:null
-    };
+
+    firstSunday=firstCalendarSundayParts();
+
+    function requestNextSunday(){
+        var parts;
+        var request;
+        var url;
+
+        if(weekIndex>=CFG.lox.searchWeeks){
+            callback(
+                successfulRequests?
+                    null:
+                    new Error("Calendar request failed"),
+                null
+            );
+            return;
+        }
+
+        parts=addDaysToParts(
+            firstSunday,
+            weekIndex*7
+        );
+        weekIndex++;
+        url=calendarDayRequestUrl(parts);
+        request=new XMLHttpRequest();
+        request.open("GET",url,true);
+        request.onreadystatechange=function(){
+            var eventItem;
+
+            if(request.readyState!==4){
+                return;
+            }
+
+            if(request.status>=200&&request.status<300){
+                successfulRequests++;
+                eventItem=parseCalendarLoxHtml(
+                    request.responseText
+                );
+
+                if(eventItem){
+                    callback(null,eventItem);
+                    return;
+                }
+            }
+
+            requestNextSunday();
+        };
+        request.send(null);
+    }
+
+    requestNextSunday();
+}
+
+function readCalendarLoxCache(){
+    try{
+        var raw=window.localStorage.getItem(
+            CFG.lox.cacheKey
+        );
+        var saved=raw?JSON.parse(raw):null;
+
+        if(
+            saved&&
+            saved.event&&
+            Date.now()-saved.time<=CFG.lox.cacheMs&&
+            isUpcoming(saved.event)
+        ){
+            return saved.event;
+        }
+    } catch(error){
+    }
+
+    return null;
+}
+
+function writeCalendarLoxCache(eventItem){
+    try{
+        if(!eventItem){
+            window.localStorage.removeItem(
+                CFG.lox.cacheKey
+            );
+            return;
+        }
+
+        window.localStorage.setItem(
+            CFG.lox.cacheKey,
+            JSON.stringify({
+                time:Date.now(),
+                event:serializeEvents([eventItem])[0]
+            })
+        );
+    } catch(error){
+    }
 }
 
 function addSpecialEvents(events){
-    var output=(events||[]).slice(0);
-    var lox=buildLoxEvent();
-    var exists;
+    var lox=state.calendarLox;
+    var loxPath=canonicalPath(CFG.lox.url);
+    var output=(events||[]).filter(function(eventItem){
+        return !(
+            canonicalPath(eventItem.url)===loxPath||
+            normalized(eventItem.title)===
+                normalized(CFG.lox.title)
+        );
+    });
 
-    if(lox){
-        exists=output.some(function(eventItem){
-            return canonicalPath(eventItem.url)===canonicalPath(lox.url)||normalized(eventItem.title)==="lox & learn";
-        });
-        if(!exists){
-            output.push(lox);
-        }
+    /*
+     * Lox & Learn is controlled only by the native calendar.
+     * Any accidental page-driven duplicate is removed first.
+     */
+    if(lox&&isUpcoming(lox)){
+        output.push(lox);
     }
 
     output.sort(function(first,second){
         return first.startTs-second.startTs;
     });
+
     return output;
 }
 
@@ -1134,7 +1324,10 @@ function isPast(eventItem){
 
 function activeUpcomingEvents(){
     return state.events.filter(function(eventItem){
-        return eventItem.upcoming&&isUpcoming(eventItem);
+        return (
+            eventItem.upcoming||
+            eventItem.featured
+        )&&isUpcoming(eventItem);
     });
 }
 
@@ -1432,6 +1625,8 @@ function renderUpcoming(){
         return;
     }
 
+    ensureCalendarLox();
+
     featuredSection=qs("#cfle-featured-section",root);
     mainSection=qs("#cfle-main-section",root);
     count=qs("#cfle-count",root);
@@ -1540,8 +1735,18 @@ function renderHomepage(){
         return;
     }
 
+    ensureCalendarLox();
+
     events=state.events.filter(function(eventItem){
-        return eventItem.homepage&&isUpcoming(eventItem);
+        return (
+            eventItem.homepage||
+            eventItem.featured
+        )&&isUpcoming(eventItem);
+    }).sort(function(first,second){
+        if(!!first.featured!==!!second.featured){
+            return first.featured?-1:1;
+        }
+        return first.startTs-second.startTs;
     }).slice(0,CFG.homepageLimit);
 
     rows=events.map(function(eventItem){
@@ -1717,13 +1922,42 @@ function renderAll(){
 }
 
 function applyEvents(events){
-    state.events=addSpecialEvents(events||[]);
+    state.baseEvents=(events||[]).slice(0);
+    state.events=addSpecialEvents(state.baseEvents);
     renderAll();
+}
+
+function applyCalendarLox(eventItem){
+    state.calendarLox=eventItem||null;
+    state.events=addSpecialEvents(state.baseEvents);
+    renderAll();
+}
+
+function ensureCalendarLox(){
+    if(state.calendarLoxRequested){
+        return;
+    }
+
+    state.calendarLoxRequested=true;
+
+    requestCalendarLox(function(error,eventItem){
+        if(error){
+            return;
+        }
+
+        writeCalendarLoxCache(eventItem);
+        applyCalendarLox(eventItem);
+    });
 }
 
 function loadEvents(){
     var cached=readCache();
+    var cachedLox=readCalendarLoxCache();
     var currentEvents=[];
+
+    if(cachedLox){
+        state.calendarLox=cachedLox;
+    }
 
     if(cached.length){
         applyEvents(cached);
