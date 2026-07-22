@@ -8,7 +8,7 @@ window.CFLE_PAGE_EVENTS_V80_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"8.0.12",
+    version:"8.0.13",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -1249,20 +1249,35 @@ function buildFallbackLoxEvent(){
 }
 
 function readCalendarLoxCache(){
-    try{
-        var raw=window.localStorage.getItem(
-            CFG.lox.cacheKey
-        );
-        var saved=raw?JSON.parse(raw):null;
 
+    try{
+
+        var raw=
+            window.localStorage.getItem(
+                CFG.lox.cacheKey
+            );
+
+        var saved=
+            raw?
+            JSON.parse(raw):
+            null;
+
+        /*
+         * Use the last known accurate Calendar occurrence
+         * immediately, regardless of its age, as long as
+         * the event has not passed.
+         *
+         * The live Calendar is refreshed quietly afterward.
+         */
         if(
-            saved&&
-            saved.event&&
-            Date.now()-saved.time<=CFG.lox.cacheMs&&
+            saved &&
+            saved.event &&
             isUpcoming(saved.event)
         ){
+
             return saved.event;
         }
+
     } catch(error){
     }
 
@@ -2046,64 +2061,131 @@ function applyCalendarLox(eventItem){
 }
 
 function ensureCalendarLox(){
+
     if(state.calendarLoxRequested){
         return;
     }
 
-    state.calendarLoxRequested=true;
+    state.calendarLoxRequested=
+        true;
 
-    requestCalendarLox(function(error,eventItem){
-        /*
-         * The calendar month page is the primary source.
-         * The fallback prevents the entire events area from
-         * going blank if the calendar request is temporarily
-         * unavailable or its markup changes.
-         */
-        if(error){
-            eventItem=buildFallbackLoxEvent();
+    requestCalendarLox(
+        function(error,eventItem){
+
+            /*
+             * Do not remove an already displayed event just
+             * because the Calendar request is slow or fails.
+             */
+            if(error){
+
+                eventItem=
+                    state.calendarLox||
+                    buildFallbackLoxEvent();
+            }
+
+            writeCalendarLoxCache(
+                eventItem
+            );
+
+            applyCalendarLox(
+                eventItem
+            );
         }
-
-        writeCalendarLoxCache(eventItem);
-        applyCalendarLox(eventItem);
-    });
+    );
 }
-
 function loadEvents(){
-    var cached=readCache();
-    var cachedLox=readCalendarLoxCache();
+
+    var cached=
+        readCache();
+
+    var cachedLox=
+        readCalendarLoxCache();
+
     var currentEvents=[];
 
-    if(cachedLox){
-        state.calendarLox=cachedLox;
-    }
+    /*
+     * Display something immediately.
+     *
+     * First choice:
+     * the most recently confirmed Calendar occurrence.
+     *
+     * First-ever visitor:
+     * temporarily use the next Sunday until the live
+     * Calendar response supplies the exact occurrence.
+     */
+    state.calendarLox=
+        cachedLox||
+        buildFallbackLoxEvent();
 
-    if(cached.length){
-        applyEvents(cached);
-    }
+    /*
+     * Render immediately—even when there are no cached
+     * page-driven events.
+     *
+     * This prevents the zero-program or blank state while
+     * network requests are still running.
+     */
+    applyEvents(
+        cached||[]
+    );
+
+    /*
+     * Start the Calendar request immediately, in parallel
+     * with the Upcoming-page request.
+     */
+    ensureCalendarLox();
 
     if(qs("#cfle-events")){
-        currentEvents=parseIndexEvents(d,true);
+
+        currentEvents=
+            parseIndexEvents(
+                d,
+                true
+            );
+
         if(currentEvents.length){
-            hideNativeSourceContainers(currentEvents);
-            writeCache(currentEvents);
-            applyEvents(currentEvents);
+
+            hideNativeSourceContainers(
+                currentEvents
+            );
+
+            writeCache(
+                currentEvents
+            );
+
+            applyEvents(
+                currentEvents
+            );
         }
     }
 
-    requestSource(function(error,html){
-        var fresh;
-        if(error||!html){
-            if(!state.events.length){
-                applyEvents([]);
-            }
-            return;
-        }
-        fresh=parseSourceHtml(html);
-        writeCache(fresh);
-        applyEvents(fresh);
-    });
-}
+    /*
+     * Refresh all page-driven events independently.
+     * This no longer delays Lox & Learn.
+     */
+    requestSource(
+        function(error,html){
 
+            var fresh;
+
+            if(error||!html){
+                return;
+            }
+
+            fresh=
+                parseSourceHtml(
+                    html
+                );
+
+            writeCache(
+                fresh
+            );
+
+            applyEvents(
+                fresh
+            );
+        }
+    );
+}
 function start(){
     
     if(
