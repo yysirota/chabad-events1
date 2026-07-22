@@ -256,6 +256,21 @@
     gap:18px;
 }
 
+/*
+ * When the number of cards is odd, the first and nearest
+ * upcoming event spans the complete width.
+ *
+ * 1 event:  full width
+ * 2 events: two equal columns
+ * 3 events: first full width, next two side by side
+ * 4 events: two rows of two
+ * 5 events: first full width, remaining four in pairs
+ */
+.cfle-grid:not(.cfle-grid--featured)
+> .cfle-card:first-child:nth-last-child(odd){
+    grid-column:1 / -1;
+}
+
 .cfle-grid--featured{
     grid-template-columns:1fr;
 }
