@@ -1075,9 +1075,9 @@ function renderUpcoming(){
 
     if(mainSection){
         if(regular.length){
-            mainSection.innerHTML='<h2 class="cfle-section-title">Upcoming Programs</h2><div class="cfle-grid">'+
-                regular.map(function(eventItem){ return cardHtml(eventItem,false,false); }).join("")+
-                '</div>';
+            mainSection.innerHTML='<div class="cfle-grid">'+
+    regular.map(function(eventItem){ return cardHtml(eventItem,false,false); }).join("")+
+    '</div>';
         } else if(!featured.length){
             mainSection.innerHTML='<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
         } else {
