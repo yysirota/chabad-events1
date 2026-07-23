@@ -2321,3 +2321,367 @@ a.cfle-home-more:hover{
         margin-top:8px !important;
     }
 }
+
+
+/* ============================================================
+   CFLE COMPACT HOMEPAGE + UPCOMING CARD SIZING
+   VERSION 9.0.2
+
+   CSS-only layout refinement:
+   - Mobile homepage rows now match the compact desktop rows.
+   - Homepage View More sits closer to the event list.
+   - Upcoming-page cards are approximately 20–25% shorter.
+   - No JavaScript, parsing, Calendar, sorting, or menu behavior changes.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   HOMEPAGE — USE THE SAME COMPACT ROWS ON MOBILE
+   ------------------------------------------------------------ */
+@media (max-width:700px){
+
+    .cfle-home-events-shell{
+        padding-bottom:0 !important;
+    }
+
+    .cfle-home-events-list{
+        gap:6px !important;
+    }
+
+    .cfle-home-event{
+        grid-template-columns:60px minmax(0,1fr) !important;
+        gap:10px !important;
+
+        min-height:64px !important;
+        margin:0 !important;
+        padding:3px 8px !important;
+
+        border-radius:14px !important;
+    }
+
+    .cfle-home-date-box{
+        width:60px !important;
+        height:58px !important;
+        min-height:58px !important;
+        padding:2px 3px !important;
+
+        border-radius:11px !important;
+    }
+
+    .cfle-home-date-month,
+    .cfle-home-date-weekday{
+        font-size:10.5px !important;
+        line-height:1 !important;
+    }
+
+    .cfle-home-date-day{
+        margin:1px 0 !important;
+        font-size:29px !important;
+        line-height:.96 !important;
+    }
+
+    .cfle-home-event-title{
+        margin-bottom:2px !important;
+    }
+
+    .cfle-home-event-time{
+        margin-top:0 !important;
+    }
+
+    .cfle-home-events-more,
+    .cfle-home-more,
+    a.cfle-home-events-more,
+    a.cfle-home-more{
+        margin-top:7px !important;
+    }
+}
+
+/* ------------------------------------------------------------
+   UPCOMING PAGE — COMPACT DESKTOP CARDS
+   ------------------------------------------------------------ */
+@media (min-width:701px){
+
+    #cfle-events .cfle-card{
+        grid-template-columns:82px minmax(0,1fr) !important;
+        grid-template-areas:
+            "date body"
+            "actions actions" !important;
+
+        gap:0 14px !important;
+        min-height:0 !important;
+        padding:14px !important;
+        border-radius:20px !important;
+    }
+
+    #cfle-events .cfle-card > .cfle-date{
+        width:82px !important;
+        min-height:96px !important;
+        padding:7px 5px !important;
+        border-radius:15px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-date-month,
+    #cfle-events .cfle-card .cfle-date-weekday{
+        font-size:12px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-date-day{
+        margin:4px 0 3px !important;
+        font-size:43px !important;
+        line-height:.96 !important;
+    }
+
+    #cfle-events .cfle-card .cfle-event-title,
+    #cfle-events .cfle-card .cfle-event-title a{
+        font-size:23px !important;
+        line-height:1.08 !important;
+    }
+
+    #cfle-events .cfle-card .cfle-event-title{
+        margin-bottom:10px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-meta{
+        gap:8px !important;
+        font-size:14px !important;
+        line-height:1.25 !important;
+    }
+
+    #cfle-events .cfle-card .cfle-meta-svg{
+        width:19px !important;
+        height:19px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-pin-svg{
+        width:19px !important;
+        height:21px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-event-actions{
+        gap:7px !important;
+        margin-top:8px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-action{
+        min-height:40px !important;
+        padding:7px 9px !important;
+        font-size:12px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-calendar-logo{
+        width:20px !important;
+        height:20px !important;
+    }
+
+    #cfle-events .cfle-card .cfle-view-action{
+        min-height:44px !important;
+        font-size:14px !important;
+    }
+
+    /* Single card, or the first card in an odd-numbered list. */
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd){
+        grid-template-columns:112px minmax(0,1fr) 270px !important;
+        grid-template-areas:"date body actions" !important;
+
+        column-gap:22px !important;
+        min-height:188px !important;
+        padding:20px 22px !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    > .cfle-date{
+        width:112px !important;
+        min-height:138px !important;
+        padding:10px 7px !important;
+        border-radius:17px !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-month,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-weekday{
+        font-size:14px !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-day{
+        margin:5px 0 4px !important;
+        font-size:54px !important;
+        line-height:.95 !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title a{
+        font-size:34px !important;
+        line-height:1.06 !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-title{
+        margin-bottom:12px !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-meta{
+        gap:9px !important;
+        font-size:16px !important;
+        line-height:1.25 !important;
+    }
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-actions{
+        gap:7px !important;
+        margin-top:0 !important;
+    }
+}
+
+/* ------------------------------------------------------------
+   UPCOMING PAGE — COMPACT MOBILE CARDS
+   ------------------------------------------------------------ */
+@media (max-width:700px){
+
+    #cfle-events
+    .cfle-grid
+    > .cfle-card,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd){
+        grid-template-columns:94px minmax(0,1fr) !important;
+        grid-template-areas:
+            "date body"
+            "actions actions" !important;
+
+        column-gap:10px !important;
+        row-gap:0 !important;
+
+        min-height:0 !important;
+        padding:13px !important;
+        border-radius:17px !important;
+    }
+
+    #cfle-events .cfle-card > .cfle-date,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    > .cfle-date{
+        width:94px !important;
+        min-height:132px !important;
+        padding:9px 6px !important;
+        border-radius:16px !important;
+    }
+
+    #cfle-events .cfle-date-month,
+    #cfle-events .cfle-date-weekday,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-month,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-weekday{
+        font-size:12px !important;
+    }
+
+    #cfle-events .cfle-date-day,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-date-day{
+        margin:5px 0 4px !important;
+        font-size:52px !important;
+        line-height:.95 !important;
+    }
+
+    #cfle-events .cfle-card-body,
+    #cfle-events .cfle-body{
+        padding-top:0 !important;
+        justify-content:center !important;
+    }
+
+    #cfle-events .cfle-event-title,
+    #cfle-events .cfle-event-title a,
+    #cfle-events
+    .cfle-event-title
+    a.cfle-mobile-short-title{
+        font-size:24px !important;
+        line-height:1.03 !important;
+    }
+
+    #cfle-events .cfle-event-title{
+        margin:0 0 10px !important;
+    }
+
+    #cfle-events .cfle-meta,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-meta{
+        gap:6px !important;
+        font-size:12.5px !important;
+        line-height:1.16 !important;
+    }
+
+    #cfle-events .cfle-meta-item{
+        gap:6px !important;
+    }
+
+    #cfle-events .cfle-meta-svg{
+        width:18px !important;
+        height:18px !important;
+        flex:0 0 18px !important;
+    }
+
+    #cfle-events .cfle-pin-svg{
+        width:18px !important;
+        height:19px !important;
+    }
+
+    #cfle-events .cfle-event-actions,
+    #cfle-events
+    .cfle-grid
+    > .cfle-card:first-child:nth-last-child(odd)
+    .cfle-event-actions{
+        gap:7px !important;
+        margin-top:12px !important;
+    }
+
+    #cfle-events .cfle-action{
+        min-height:43px !important;
+        padding:8px 5px !important;
+        font-size:10.8px !important;
+        line-height:1.05 !important;
+    }
+
+    #cfle-events .cfle-calendar-logo{
+        width:19px !important;
+        height:19px !important;
+    }
+
+    #cfle-events .cfle-view-action{
+        min-height:49px !important;
+        padding:10px 12px !important;
+        font-size:15px !important;
+    }
+}
