@@ -1,47 +1,49 @@
 (function(){
 "use strict";
 
-if(window.CFLE_PAGE_EVENTS_V80_LOADED){
+if(window.CFLE_EVENTS_CLEAN_V1_LOADED){
     return;
 }
-window.CFLE_PAGE_EVENTS_V80_LOADED=true;
+window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"8.0.13",
+    version:"9.0.0",
+    buildId:"CFLE-CLEAN-2026-07-22-A",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
     parentAid:"7437974",
-    cacheKey:"cflePageEventsV800",
-    cacheMs:300000,
+    cacheKey:"cfleEventsCleanV1",
     homepageLimit:4,
+    requestTimeoutMs:3000,
     defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
     lox:{
         enabled:true,
         title:"Lox & Learn",
         url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
         calendarFeedUrl:"/templates/events.htm",
-        cacheKey:"cfleCalendarLoxV812",
-        cacheMs:21600000,
-        startHour:10,
-        startMinute:0,
-        durationMinutes:60,
         homepage:true,
         upcoming:true
     }
 };
 
+window.CFLE_EVENTS_VERSION=CFG.version;
+window.CFLE_EVENTS_BUILD_ID=CFG.buildId;
+
 var state={
     events:[],
-    baseEvents:[],
+    pageEvents:[],
     calendarLox:null,
-    calendarLoxRequested:false,
+    pageDone:false,
+    calendarDone:false,
+    pageSuccess:false,
+    calendarSuccess:false,
+    initialLoadPending:true,
     search:"",
     range:"all",
     bound:false,
-    homeWatcherStarted:false,
-    navCleanupStarted:false
+    homeWatcherStarted:false
 };
 
 function qs(selector,parent){
@@ -68,6 +70,36 @@ function oneLine(value){
 
 function normalized(value){
     return oneLine(value).toLowerCase();
+}
+
+function readableNodeText(node){
+    var text;
+    var clone;
+    var owner;
+
+    if(!node){
+        return "";
+    }
+
+    clone=node.cloneNode(true);
+    owner=clone.ownerDocument||d;
+
+    qsa(
+        "br,p,div,li,section,article,h1,h2,h3,h4,h5,h6,td,tr",
+        clone
+    ).forEach(function(element){
+        if(element.parentNode){
+            element.parentNode.insertBefore(
+                owner.createTextNode(" "),
+                element
+            );
+        }
+        element.appendChild(
+            owner.createTextNode(" ")
+        );
+    });
+
+    return cleanText(clone.textContent||"");
 }
 
 function escapeHtml(value){
@@ -811,7 +843,7 @@ function findEventContainer(anchor){
         if(closestBySelector(node,"#header,.site-nav-wrapper,#co_menu_container,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb")){
             return null;
         }
-        text=cleanText(node.innerText||node.textContent||"");
+        text=readableNodeText(node);
         if(text.length>3000){
             continue;
         }
@@ -863,7 +895,7 @@ function parseIndexEvents(doc,keepContainers){
             continue;
         }
 
-        text=cleanText(container.innerText||container.textContent||"");
+        text=readableNodeText(container);
         placement=parsePlacement(text);
         dateInfo=parseEventDateTime(text);
 
@@ -892,6 +924,7 @@ function parseIndexEvents(doc,keepContainers){
             upcoming:placement.upcoming,
             featured:placement.featured,
             recurring:false,
+            sourceType:"page",
             sourceContainer:keepContainers?container:null
         };
 
@@ -1094,6 +1127,7 @@ function parseCalendarLoxHtml(html){
                 upcoming:CFG.lox.upcoming,
                 featured:false,
                 recurring:true,
+                sourceType:"calendar-lox",
                 sourceContainer:null
             });
         });
@@ -1109,15 +1143,25 @@ function parseCalendarLoxHtml(html){
 function requestCalendarLox(callback){
     var request;
     var url;
+    var completed=false;
+
+    function finish(error,eventItem){
+        if(completed){
+            return;
+        }
+        completed=true;
+        callback(error,eventItem);
+    }
 
     if(!CFG.lox.enabled){
-        callback(null,null);
+        finish(null,null);
         return;
     }
 
     url=calendarFeedRequestUrl();
     request=new XMLHttpRequest();
     request.open("GET",url,true);
+    request.timeout=CFG.requestTimeoutMs;
     request.onreadystatechange=function(){
         var eventItem;
 
@@ -1126,182 +1170,29 @@ function requestCalendarLox(callback){
         }
 
         if(request.status>=200&&request.status<300){
-            eventItem=parseCalendarLoxHtml(
-                request.responseText
-            );
-            callback(null,eventItem);
+            try{
+                eventItem=parseCalendarLoxHtml(
+                    request.responseText
+                );
+                finish(null,eventItem);
+            } catch(error){
+                finish(error,null);
+            }
             return;
         }
 
-        callback(
-            new Error("Calendar feed request failed"),
+        finish(
+            new Error("Calendar feed request failed: "+String(request.status||"unknown")),
             null
         );
     };
+    request.onerror=function(){
+        finish(new Error("Calendar feed network error"),null);
+    };
+    request.ontimeout=function(){
+        finish(new Error("Calendar feed timed out"),null);
+    };
     request.send(null);
-}
-
-function nextWeekdayParts(weekday,hour,minute){
-    var nowParts=getNewYorkNowParts();
-    var todayUtc=new Date(
-        Date.UTC(
-            nowParts.year,
-            nowParts.month-1,
-            nowParts.day
-        )
-    );
-    var todayWeekday=todayUtc.getUTCDay();
-    var daysUntil=(weekday-todayWeekday+7)%7;
-    var candidate=addDaysToParts({
-        year:nowParts.year,
-        month:nowParts.month,
-        day:nowParts.day,
-        hour:hour,
-        minute:minute
-    },daysUntil);
-
-    if(
-        daysUntil===0&&
-        timestampFromParts(candidate)<=
-            timestampFromParts(nowParts)
-    ){
-        candidate=addDaysToParts(candidate,7);
-    }
-
-    return candidate;
-}
-
-function buildFallbackLoxEvent(){
-    var startParts;
-    var endParts;
-    var date;
-
-    startParts=nextWeekdayParts(
-        0,
-        CFG.lox.startHour,
-        CFG.lox.startMinute
-    );
-
-    endParts={
-        year:startParts.year,
-        month:startParts.month,
-        day:startParts.day,
-        hour:startParts.hour+
-            Math.floor(CFG.lox.durationMinutes/60),
-        minute:startParts.minute+
-            (CFG.lox.durationMinutes%60)
-    };
-
-    if(endParts.minute>=60){
-        endParts.hour+=Math.floor(endParts.minute/60);
-        endParts.minute=endParts.minute%60;
-    }
-
-    if(endParts.hour>=24){
-        endParts.hour=endParts.hour%24;
-        endParts=addDaysToParts(endParts,1);
-    }
-
-    date={
-        year:startParts.year,
-        month:monthName(startParts.month),
-        monthNumber:startParts.month,
-        day:startParts.day,
-        weekday:weekdayNameFromYmd(
-            startParts.year,
-            startParts.month,
-            startParts.day
-        ),
-        label:weekdayNameFromYmd(
-            startParts.year,
-            startParts.month,
-            startParts.day
-        )+", "+
-            monthName(startParts.month)+
-            " "+startParts.day+
-            ", "+startParts.year
-    };
-
-    return {
-        id:"calendar-lox-fallback-"+
-            timestampFromParts(startParts),
-        title:CFG.lox.title,
-        url:absoluteUrl(CFG.lox.url),
-        startTs:timestampFromParts(startParts),
-        endTs:timestampFromParts(endParts),
-        startParts:startParts,
-        endParts:endParts,
-        allDay:false,
-        time:formatClockParts(startParts)+
-            " - "+
-            formatClockParts(endParts),
-        date:date,
-        location:{
-            text:CFG.defaultLocation,
-            name:"Chabad of Fort Lee"
-        },
-        homepage:CFG.lox.homepage,
-        upcoming:CFG.lox.upcoming,
-        featured:false,
-        recurring:true,
-        sourceContainer:null
-    };
-}
-
-function readCalendarLoxCache(){
-
-    try{
-
-        var raw=
-            window.localStorage.getItem(
-                CFG.lox.cacheKey
-            );
-
-        var saved=
-            raw?
-            JSON.parse(raw):
-            null;
-
-        /*
-         * Use the last known accurate Calendar occurrence
-         * immediately, regardless of its age, as long as
-         * the event has not passed.
-         *
-         * The live Calendar is refreshed quietly afterward.
-         */
-        if(
-            saved &&
-            saved.event &&
-            isUpcoming(saved.event)
-        ){
-
-            return saved.event;
-        }
-
-    } catch(error){
-    }
-
-    return null;
-}
-
-function writeCalendarLoxCache(eventItem){
-    try{
-        if(!eventItem){
-            window.localStorage.removeItem(
-                CFG.lox.cacheKey
-            );
-            return;
-        }
-
-        window.localStorage.setItem(
-            CFG.lox.cacheKey,
-            JSON.stringify({
-                time:Date.now(),
-                event:serializeEvents([eventItem])[0]
-            })
-        );
-    } catch(error){
-    }
 }
 
 function addSpecialEvents(events){
@@ -1310,14 +1201,14 @@ function addSpecialEvents(events){
     var output=(events||[]).filter(function(eventItem){
         return !(
             canonicalPath(eventItem.url)===loxPath||
-            normalized(eventItem.title)===
-                normalized(CFG.lox.title)
+            normalized(eventItem.title)===normalized(CFG.lox.title)
         );
     });
 
     /*
-     * Lox & Learn is controlled only by the native calendar.
-     * Any accidental page-driven duplicate is removed first.
+     * Lox & Learn is supplied only by the ChabadOne Calendar.
+     * Any page-driven duplicate is removed before the nearest
+     * future Calendar occurrence is added.
      */
     if(lox&&isUpcoming(lox)){
         output.push(lox);
@@ -1331,7 +1222,7 @@ function addSpecialEvents(events){
 }
 
 function serializeEvents(events){
-    return events.map(function(eventItem){
+    return (events||[]).map(function(eventItem){
         return {
             id:eventItem.id,
             title:eventItem.title,
@@ -1344,89 +1235,89 @@ function serializeEvents(events){
             time:eventItem.time,
             date:eventItem.date,
             location:eventItem.location,
-            homepage:eventItem.homepage,
-            upcoming:eventItem.upcoming,
-            featured:eventItem.featured,
-            recurring:eventItem.recurring
+            homepage:!!eventItem.homepage,
+            upcoming:!!eventItem.upcoming,
+            featured:!!eventItem.featured,
+            recurring:!!eventItem.recurring,
+            sourceType:eventItem.sourceType||(
+                normalized(eventItem.title)===normalized(CFG.lox.title)?
+                "calendar-lox":
+                "page"
+            )
         };
     });
 }
 
 function readCache(){
-
     try{
+        var raw=window.localStorage.getItem(CFG.cacheKey);
+        var saved=raw?JSON.parse(raw):null;
 
-        var raw=
-            window.localStorage.getItem(
-                CFG.cacheKey
-            );
-
-        var saved=
-            raw?
-            JSON.parse(raw):
-            null;
-
-        /*
-         * Display the most recently saved event list
-         * immediately, regardless of its age.
-         *
-         * The script still downloads the newest version
-         * quietly afterward.
-         */
         if(
             saved&&
-            saved.events
+            saved.buildId===CFG.buildId&&
+            saved.events&&
+            Object.prototype.toString.call(saved.events)==="[object Array]"
         ){
-
             return saved.events;
         }
-
     } catch(error){
     }
 
     return [];
 }
-    
+
 function writeCache(events){
     try{
-        window.localStorage.setItem(CFG.cacheKey,JSON.stringify({
-            time:Date.now(),
-            events:serializeEvents(events)
-        }));
+        window.localStorage.setItem(
+            CFG.cacheKey,
+            JSON.stringify({
+                buildId:CFG.buildId,
+                time:Date.now(),
+                events:serializeEvents(events)
+            })
+        );
     } catch(error){
     }
 }
 
 function requestSource(callback){
-    /*
- * Use one source URL per five-minute window instead of
- * forcing a completely new URL on every page load.
- */
-var cacheWindow=
-    Math.floor(
-        Date.now()/
-        300000
-    );
+    var request;
+    var completed=false;
+    var url=CFG.sourceUrl+
+        (CFG.sourceUrl.indexOf("?")>-1?"&":"?")+
+        "cfle_events_clean="+
+        Date.now();
 
-var url=CFG.sourceUrl+
-    (
-        CFG.sourceUrl.indexOf("?")>-1?
-        "&":
-        "?"
-    )+
-    "cfle_page_events="+
-    cacheWindow;
-    var request=new XMLHttpRequest();
+    function finish(error,html){
+        if(completed){
+            return;
+        }
+        completed=true;
+        callback(error,html);
+    }
+
+    request=new XMLHttpRequest();
     request.open("GET",url,true);
+    request.timeout=CFG.requestTimeoutMs;
     request.onreadystatechange=function(){
         if(request.readyState!==4){
             return;
         }
         if(request.status>=200&&request.status<300){
-            callback(null,request.responseText);
+            finish(null,request.responseText);
         } else {
-            callback(new Error(String(request.status||"Request failed")),"");
+            finish(
+                new Error("Upcoming-page request failed: "+String(request.status||"unknown")),
+                ""
+            );
         }
+    };
+    request.onerror=function(){
+        finish(new Error("Upcoming-page network error"),"");
+    };
+    request.ontimeout=function(){
+        finish(new Error("Upcoming-page request timed out"),"");
     };
     request.send(null);
 }
@@ -1752,8 +1643,6 @@ function renderUpcoming(){
         return;
     }
 
-    ensureCalendarLox();
-
     featuredSection=qs("#cfle-featured-section",root);
     mainSection=qs("#cfle-main-section",root);
     count=qs("#cfle-count",root);
@@ -1784,7 +1673,9 @@ function renderUpcoming(){
     regular.map(function(eventItem){ return cardHtml(eventItem,false,false); }).join("")+
     '</div>';
         } else if(!featured.length){
-            mainSection.innerHTML='<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
+            mainSection.innerHTML=state.initialLoadPending?
+                '<div class="cfle-empty"><strong>Loading upcoming programs&hellip;</strong><span>Please wait a moment.</span></div>':
+                '<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
         } else {
             mainSection.innerHTML="";
         }
@@ -1862,8 +1753,6 @@ function renderHomepage(){
         return;
     }
 
-    ensureCalendarLox();
-
     events=state.events.filter(function(eventItem){
         return (
             eventItem.homepage||
@@ -1929,7 +1818,11 @@ function renderHomepage(){
     widget.innerHTML='<div class="cfle-home-events-shell">'+
         '<h2 class="cfle-home-events-heading">Upcoming at Chabad</h2>'+
         '<div class="cfle-home-events-list">'+
-            (rows||'<div class="cfle-home-events-empty">New programs will be posted soon.</div>')+
+            (rows||(
+                state.initialLoadPending?
+                '<div class="cfle-home-events-empty">Loading upcoming programs&hellip;</div>':
+                '<div class="cfle-home-events-empty">New programs will be posted soon.</div>'
+            ))+
         '</div>'+
         '<a class="cfle-home-events-more" href="'+escapeHtml(CFG.upcomingUrl)+'">View More</a>'+
     '</div>';
@@ -1995,234 +1888,122 @@ function hideNativeSourceContainers(events){
     });
 }
 
-function navItemForAnchor(anchor){
-    return closestBySelector(anchor,"li,td.co_menu_item,.co_menu_item,.menu-item")||anchor.parentNode;
-}
-
-function cleanExpiredNavigation(){
-    var expired={};
-    var anchors;
-
-    state.events.forEach(function(eventItem){
-        if(!eventItem.recurring&&isPast(eventItem)){
-            expired[canonicalPath(eventItem.url)]=true;
-        }
-    });
-
-    anchors=qsa('.site-nav-wrapper a[href],#co_menu_container a[href],#header a[href]');
-    anchors.forEach(function(anchor){
-        var path=canonicalPath(anchor.href||anchor.getAttribute("href")||"");
-        var item;
-        if(expired[path]){
-            item=navItemForAnchor(anchor);
-            if(item&&item.style){
-                item.style.display="none";
-            }
-        }
-    });
-}
-
-function startNavigationCleanup(){
-    var attempts=0;
-    var timer;
-    if(state.navCleanupStarted){
-        cleanExpiredNavigation();
-        return;
-    }
-    state.navCleanupStarted=true;
-    cleanExpiredNavigation();
-    timer=window.setInterval(function(){
-        attempts++;
-        cleanExpiredNavigation();
-        if(attempts>=20){
-            window.clearInterval(timer);
-        }
-    },500);
-}
-
 function renderAll(){
     bindUpcomingUi();
     renderUpcoming();
+    renderHomepage();
     startHomepageWatcher();
     renderPast();
-    startNavigationCleanup();
 }
 
-function applyEvents(events){
-    state.baseEvents=(events||[]).slice(0);
-    state.events=addSpecialEvents(state.baseEvents);
-    renderAll();
-}
+function splitCachedEvents(events){
+    state.pageEvents=[];
+    state.calendarLox=null;
 
-function applyCalendarLox(eventItem){
-    state.calendarLox=eventItem||null;
-    state.events=addSpecialEvents(state.baseEvents);
-    renderAll();
-}
-
-function ensureCalendarLox(){
-
-    if(state.calendarLoxRequested){
-        return;
-    }
-
-    state.calendarLoxRequested=
-        true;
-
-    requestCalendarLox(
-        function(error,eventItem){
-
-            /*
-             * Do not remove an already displayed event just
-             * because the Calendar request is slow or fails.
-             */
-            if(error){
-
-                eventItem=
-                    state.calendarLox||
-                    buildFallbackLoxEvent();
+    (events||[]).forEach(function(eventItem){
+        if(
+            eventItem.sourceType==="calendar-lox"||
+            normalized(eventItem.title)===normalized(CFG.lox.title)||
+            canonicalPath(eventItem.url)===canonicalPath(CFG.lox.url)
+        ){
+            if(!state.calendarLox||eventItem.startTs<state.calendarLox.startTs){
+                state.calendarLox=eventItem;
             }
-
-            writeCalendarLoxCache(
-                eventItem
-            );
-
-            applyCalendarLox(
-                eventItem
-            );
+        } else {
+            state.pageEvents.push(eventItem);
         }
-    );
+    });
 }
+
+function refreshCombinedEvents(writeToStorage){
+    state.events=addSpecialEvents(state.pageEvents);
+    state.initialLoadPending=!(state.pageDone&&state.calendarDone);
+    renderAll();
+
+    if(writeToStorage){
+        writeCache(state.events);
+    }
+}
+
 function loadEvents(){
-
-    var cached=
-        readCache();
-
-    var cachedLox=
-        readCalendarLoxCache();
-
+    var cached=readCache();
     var currentEvents=[];
 
-    /*
-     * Display something immediately.
-     *
-     * First choice:
-     * the most recently confirmed Calendar occurrence.
-     *
-     * First-ever visitor:
-     * temporarily use the next Sunday until the live
-     * Calendar response supplies the exact occurrence.
-     */
-    state.calendarLox=
-        cachedLox||
-        buildFallbackLoxEvent();
-
-    /*
-     * Render immediately—even when there are no cached
-     * page-driven events.
-     *
-     * This prevents the zero-program or blank state while
-     * network requests are still running.
-     */
-    applyEvents(
-        cached||[]
-    );
-
-    /*
-     * Start the Calendar request immediately, in parallel
-     * with the Upcoming-page request.
-     */
-    ensureCalendarLox();
+    splitCachedEvents(cached);
 
     if(qs("#cfle-events")){
-
-        currentEvents=
-            parseIndexEvents(
-                d,
-                true
-            );
-
+        currentEvents=parseIndexEvents(d,true);
         if(currentEvents.length){
-
-            hideNativeSourceContainers(
-                currentEvents
-            );
-
-            writeCache(
-                currentEvents
-            );
-
-            applyEvents(
-                currentEvents
-            );
+            hideNativeSourceContainers(currentEvents);
+            state.pageEvents=currentEvents;
         }
     }
 
     /*
-     * Refresh all page-driven events independently.
-     * This no longer delays Lox & Learn.
+     * Paint immediately from the last known combined result.
+     * With no cache, paint the normal in-layout loading state.
      */
-    requestSource(
-        function(error,html){
+    refreshCombinedEvents(false);
 
-            var fresh;
+    /*
+     * Both independent sources start at once.  Whichever returns
+     * first can update the page immediately; neither waits for the
+     * other.  The hard timeout prevents an endless blank/loading state.
+     */
+    requestCalendarLox(function(error,eventItem){
+        state.calendarDone=true;
+        state.calendarSuccess=!error;
 
-            if(error||!html){
-                return;
-            }
-
-            fresh=
-                parseSourceHtml(
-                    html
-                );
-
-            writeCache(
-                fresh
-            );
-
-            applyEvents(
-                fresh
-            );
+        if(!error){
+            state.calendarLox=eventItem||null;
         }
-    );
+
+        refreshCombinedEvents(
+            state.calendarSuccess||state.pageSuccess
+        );
+    });
+
+    requestSource(function(error,html){
+        var fresh;
+
+        state.pageDone=true;
+        state.pageSuccess=!error;
+
+        if(!error&&html){
+            try{
+                fresh=parseSourceHtml(html);
+                state.pageEvents=fresh;
+            } catch(parseError){
+                state.pageSuccess=false;
+            }
+        }
+
+        refreshCombinedEvents(
+            state.calendarSuccess||state.pageSuccess
+        );
+    });
 }
+
 function start(){
-    
-    if(
-    !window.CFLE_EVENT_TITLE_RESIZE_BOUND
-){
+    if(!window.CFLE_EVENT_TITLE_RESIZE_BOUND){
+        window.CFLE_EVENT_TITLE_RESIZE_BOUND=true;
 
-    window.CFLE_EVENT_TITLE_RESIZE_BOUND=
-        true;
+        var titleResizeTimer;
 
-    var titleResizeTimer;
-
-    window.addEventListener(
-        "resize",
-        function(){
-
-            window.clearTimeout(
-                titleResizeTimer
-            );
-
-            titleResizeTimer=
-                window.setTimeout(
+        window.addEventListener(
+            "resize",
+            function(){
+                window.clearTimeout(titleResizeTimer);
+                titleResizeTimer=window.setTimeout(
                     function(){
-
-                        scheduleEventTitleFit(
-                            document
-                        );
-
+                        scheduleEventTitleFit(document);
                     },
                     120
                 );
-        }
-    );
-}
-    var widget=findHomepageMarkerWidget();
-    if(widget){
-        widget.style.visibility="hidden";
+            }
+        );
     }
+
     loadEvents();
 }
 
