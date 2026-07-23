@@ -8,8 +8,8 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"9.0.0",
-    buildId:"CFLE-CLEAN-2026-07-22-A",
+    version:"9.0.1",
+    buildId:"CFLE-CLEAN-2026-07-22-B",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -826,34 +826,109 @@ function meaningfulTitle(anchor){
     return text;
 }
 
+function eventArticlePaths(container){
+    var paths={};
+
+    qsa(
+        'a[href*="/templates/articlecco_cdo/aid/"]',
+        container
+    ).forEach(function(link){
+        var href;
+        var path;
+
+        if(isNavigationAnchor(link)){
+            return;
+        }
+
+        href=absoluteUrl(
+            link.getAttribute("href")||""
+        );
+        path=canonicalPath(href);
+
+        if(
+            !path||
+            path.indexOf("/aid/"+CFG.parentAid+"/")>-1||
+            /past-events\.htm$/i.test(path)
+        ){
+            return;
+        }
+
+        paths[path]=true;
+    });
+
+    return Object.keys(paths);
+}
+
 function findEventContainer(anchor){
     var node=anchor;
     var depth=0;
     var text;
     var placement;
     var dateInfo;
-    var anchors;
+    var paths;
+    var anchorPath=canonicalPath(
+        absoluteUrl(
+            anchor.getAttribute("href")||""
+        )
+    );
 
     while(node&&depth<10){
         node=node.parentNode;
         depth++;
-        if(!node||node.nodeType!==1||/^(BODY|HTML)$/i.test(node.tagName||"")){
+
+        if(
+            !node||
+            node.nodeType!==1||
+            /^(BODY|HTML)$/i.test(
+                node.tagName||""
+            )
+        ){
             break;
         }
-        if(closestBySelector(node,"#header,.site-nav-wrapper,#co_menu_container,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb")){
+
+        if(
+            closestBySelector(
+                node,
+                "#header,.site-nav-wrapper,#co_menu_container,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb"
+            )
+        ){
             return null;
         }
+
         text=readableNodeText(node);
+
         if(text.length>3000){
             continue;
         }
+
         placement=parsePlacement(text);
         dateInfo=parseEventDateTime(text);
-        anchors=qsa('a[href*="/templates/articlecco_cdo/aid/"]',node);
-        if(placement.recognized&&dateInfo&&anchors.length<=10){
+
+        if(!placement.recognized||!dateInfo){
+            continue;
+        }
+
+        /*
+         * A valid event block may contain more than one link
+         * (for example, a linked title and linked image), but
+         * every article link inside that block must point to the
+         * SAME event page.
+         *
+         * This prevents a neighboring native child-page link,
+         * such as Tisha B'Av, from inheriting the date and Index
+         * Synopsis of a newly created Sample event farther down
+         * in the same ChabadOne index section.
+         */
+        paths=eventArticlePaths(node);
+
+        if(
+            paths.length===1&&
+            paths[0]===anchorPath
+        ){
             return node;
         }
     }
+
     return null;
 }
 
