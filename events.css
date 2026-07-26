@@ -2763,3 +2763,280 @@ a.cfle-home-more:hover{
         font-size:14.5px !important;
     }
 }
+
+/* ============================================================
+   CFLE FEATURED EVENT VISUAL TREATMENT — v9.1.1
+
+   HOMEPAGE:
+   - Featured rows receive a subtle champagne-gold tint.
+   - A standalone gold star appears at the far right.
+
+   UPCOMING PAGE:
+   - Featured cards receive the same subtle gold tint.
+   - The title is larger and begins lower on its own clear line.
+   - The Featured badge moves to the upper-right corner and
+     includes a gold star.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   HOMEPAGE FEATURED ROWS
+   ------------------------------------------------------------ */
+
+.cfle-home-event--featured{
+    grid-template-columns:60px minmax(0,1fr) 34px !important;
+    grid-template-areas:"date content featured-star" !important;
+
+    border-color:rgba(229,169,0,.96) !important;
+
+    /*
+     * Warm pale-gold background matched to the earlier
+     * Spotlight Programs design supplied as the reference.
+     */
+    background:
+        linear-gradient(
+            135deg,
+            #f9edcf 0%,
+            #fdf5e5 50%,
+            #fff8e8 100%
+        ) !important;
+
+    box-shadow:
+        inset 0 0 0 1px rgba(229,169,0,.07) !important;
+}
+
+.cfle-home-featured-star{
+    grid-area:featured-star !important;
+
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    align-self:center !important;
+    justify-self:center !important;
+
+    width:30px !important;
+    height:30px !important;
+
+    color:#d7950a !important;
+    font-size:29px !important;
+    line-height:1 !important;
+
+    text-shadow:
+        0 2px 7px rgba(177,119,8,.24) !important;
+
+    transform:translateY(-1px) !important;
+    transition:
+        transform .20s ease,
+        text-shadow .20s ease !important;
+}
+
+.cfle-home-event--featured:hover{
+    border-color:#e5a900 !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f6e5b9 0%,
+            #fbedcf 52%,
+            #fff5df 100%
+        ) !important;
+
+    box-shadow:
+        0 10px 24px rgba(86,57,10,.11),
+        0 0 0 3px rgba(229,169,0,.06) !important;
+}
+
+.cfle-home-event--featured:hover
+.cfle-home-featured-star{
+    transform:
+        translateY(-1px)
+        scale(1.10) !important;
+
+    text-shadow:
+        0 3px 10px rgba(177,119,8,.34) !important;
+}
+
+/* ------------------------------------------------------------
+   UPCOMING PAGE FEATURED CARDS
+   ------------------------------------------------------------ */
+
+#cfle-events .cfle-card--featured{
+    position:relative !important;
+
+    border-width:2px !important;
+    border-color:#dca31e !important;
+
+    /*
+     * Use the same warm pale-gold family as the homepage
+     * so Featured events have one consistent visual identity.
+     */
+    background:
+        linear-gradient(
+            135deg,
+            #f9edcf 0%,
+            #fdf5e5 50%,
+            #fff8e8 100%
+        ) !important;
+
+    box-shadow:
+        0 14px 34px rgba(86,57,10,.11),
+        inset 0 0 0 1px rgba(229,169,0,.055) !important;
+}
+
+#cfle-events .cfle-card--featured:hover{
+    border-color:#efb62d !important;
+
+    box-shadow:
+        0 18px 42px rgba(94,61,7,.16),
+        0 0 0 4px rgba(229,169,0,.075),
+        inset 0 0 0 1px rgba(229,169,0,.07) !important;
+}
+
+/*
+ * The badge occupies the previously empty upper-right corner.
+ */
+#cfle-events
+.cfle-card--featured
+.cfle-tags{
+    position:absolute !important;
+    top:13px !important;
+    right:14px !important;
+    z-index:3 !important;
+
+    display:flex !important;
+    margin:0 !important;
+    padding:0 !important;
+}
+
+#cfle-events
+.cfle-card--featured
+.cfle-tag--featured{
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:6px !important;
+
+    min-height:29px !important;
+    padding:6px 11px !important;
+
+    border:1px solid rgba(190,127,12,.78) !important;
+    border-radius:999px !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f6cf5d,
+            #d99b1d
+        ) !important;
+
+    color:#fff !important;
+    font-size:11px !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.045em !important;
+
+    box-shadow:
+        0 5px 12px rgba(190,127,12,.18) !important;
+}
+
+#cfle-events
+.cfle-featured-badge-star{
+    display:inline-block !important;
+
+    color:#fff !important;
+    font-size:13px !important;
+    line-height:1 !important;
+
+    transform:translateY(-.25px) !important;
+}
+
+/*
+ * Move the title lower so it sits beneath the top-right badge,
+ * while retaining the complete width of the information column.
+ */
+#cfle-events
+.cfle-card--featured
+.cfle-card-body{
+    align-self:start !important;
+    padding-top:31px !important;
+}
+
+#cfle-events
+.cfle-card--featured
+.cfle-event-title{
+    width:100% !important;
+    margin:0 0 11px !important;
+}
+
+#cfle-events
+.cfle-card--featured
+.cfle-event-title,
+#cfle-events
+.cfle-card--featured
+.cfle-event-title a{
+    display:block !important;
+
+    color:#211b15 !important;
+
+    font-size:31px !important;
+    line-height:1.04 !important;
+    font-weight:900 !important;
+    letter-spacing:-.025em !important;
+
+    text-align:left !important;
+    text-decoration:none !important;
+}
+
+/* ------------------------------------------------------------
+   MOBILE RESPONSIVE REFINEMENT
+   ------------------------------------------------------------ */
+
+@media (max-width:700px){
+
+    .cfle-home-event--featured{
+        grid-template-columns:60px minmax(0,1fr) 27px !important;
+        grid-template-areas:"date content featured-star" !important;
+    }
+
+    .cfle-home-featured-star{
+        width:25px !important;
+        height:25px !important;
+        font-size:24px !important;
+    }
+
+    #cfle-events
+    .cfle-card--featured
+    .cfle-tags{
+        top:10px !important;
+        right:11px !important;
+    }
+
+    #cfle-events
+    .cfle-card--featured
+    .cfle-tag--featured{
+        min-height:26px !important;
+        padding:5px 9px !important;
+        gap:5px !important;
+        font-size:10px !important;
+    }
+
+    #cfle-events
+    .cfle-card--featured
+    .cfle-card-body{
+        padding-top:32px !important;
+    }
+
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title,
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title a,
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title
+    a.cfle-mobile-short-title{
+        font-size:26px !important;
+        line-height:1.03 !important;
+        text-align:left !important;
+    }
+}
