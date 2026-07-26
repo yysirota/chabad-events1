@@ -8,8 +8,8 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"9.0.1",
-    buildId:"CFLE-CLEAN-2026-07-22-B",
+    version:"9.1.0",
+    buildId:"CFLE-FEATURED-2026-07-26-A",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -1592,7 +1592,10 @@ function calendarIcon(){
 }
 
 function featuredTag(){
-    return '<span class="cfle-tag cfle-tag--featured">Featured</span>';
+    return '<span class="cfle-tag cfle-tag--featured">'+
+        '<span class="cfle-featured-badge-star" aria-hidden="true">&#9733;</span>'+
+        '<span>Featured</span>'+
+    '</span>';
 }
 
 function renderMeta(eventItem){
@@ -1844,7 +1847,9 @@ function renderHomepage(){
 
     var date=eventItem.date||{};
 
-    return '<a class="cfle-home-event" href="'+escapeHtml(eventItem.url)+'">'+
+    return '<a class="cfle-home-event'+
+        (eventItem.featured?' cfle-home-event--featured':'')+
+        '" href="'+escapeHtml(eventItem.url)+'">'+
 
         '<span class="cfle-home-date-box">'+
             '<span class="cfle-home-date-month">'+
@@ -1877,6 +1882,12 @@ function renderHomepage(){
                 ''
             )+
         '</span>'+
+
+        (
+            eventItem.featured?
+            '<span class="cfle-home-featured-star" aria-hidden="true">&#9733;</span>':
+            ''
+        )+
 
         '<span class="cfle-home-event-arrow" aria-hidden="true">'+
             '&#8594;'+
