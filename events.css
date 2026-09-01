@@ -3041,85 +3041,87 @@ a.cfle-home-more:hover{
     }
 }
 /* ============================================================
-   CFLE FEATURED LARGE-CARD BADGE PLACEMENT — v9.1.2
+   CFLE FEATURED LARGE-CARD BADGE PLACEMENT — v9.1.3
 
-   Desktop Upcoming page:
-   - Featured cards stay full width.
-   - Featured pill moves out of the upper-right action area.
-   - Pill sits directly above the event title.
-   - Calendar/action buttons remain completely unobstructed.
-   - Existing pill size, gold styling, title size, date box,
-     card size and all other styling remain unchanged.
+   DESKTOP UPCOMING PAGE ONLY
+
+   - Featured event stays full width.
+   - Existing Featured pill sits directly above event title.
+   - Calendar buttons remain untouched on the right.
+   - Existing card, date box, title and button sizes unchanged.
+   - Mobile keeps its existing upper-right Featured placement.
    ============================================================ */
 
 @media (min-width:701px){
 
     /*
-     * The Featured section is currently the full-width Featured
-     * layout. Turn its information column into a vertical stack
-     * so we can place the existing badge above the title.
+     * The old Featured design positioned this badge absolutely
+     * in the upper-right corner of the entire card.
+     *
+     * On desktop we now return it to normal document flow.
      */
     #cfle-events
-    .cfle-grid--featured
-    > .cfle-card--featured
-    .cfle-card-body{
-        display:flex !important;
-        flex-direction:column !important;
-        align-items:flex-start !important;
-        justify-content:center !important;
-
-        /*
-         * Remove the old 31px top clearance that existed only
-         * because the badge used to float in the top-right corner.
-         */
-        padding-top:0 !important;
-    }
-
-    /*
-     * Move the existing Featured pill into normal document flow.
-     * This removes it from the calendar/action-button area.
-     */
-    #cfle-events
-    .cfle-grid--featured
-    > .cfle-card--featured
+    .cfle-card--featured
     .cfle-tags{
         position:static !important;
 
         top:auto !important;
         right:auto !important;
+        bottom:auto !important;
         left:auto !important;
 
-        order:1 !important;
+        z-index:auto !important;
 
         display:flex !important;
-        align-self:flex-start !important;
+        align-items:center !important;
+        justify-content:flex-start !important;
 
-        margin:0 0 8px !important;
+        width:auto !important;
+
+        margin:0 0 7px !important;
         padding:0 !important;
     }
 
     /*
-     * Title comes immediately below the Featured pill.
-     * Its font size and styling are NOT changed.
+     * Remove the old empty 31px space that had been created
+     * underneath the floating upper-right Featured badge.
+     *
+     * Center the entire information group vertically beside
+     * the large date panel.
      */
     #cfle-events
-    .cfle-grid--featured
-    > .cfle-card--featured
-    .cfle-event-title{
-        order:2 !important;
+    .cfle-card--featured
+    .cfle-card-body{
+        align-self:center !important;
 
-        width:100% !important;
-        margin:2px 0 11px !important;
+        padding-top:0 !important;
+
+        text-align:left !important;
     }
 
     /*
-     * Time and location remain underneath the title.
+     * Title now naturally follows immediately beneath the
+     * Featured pill.
      */
     #cfle-events
-    .cfle-grid--featured
-    > .cfle-card--featured
-    .cfle-meta{
-        order:3 !important;
+    .cfle-card--featured
+    .cfle-event-title{
+        width:100% !important;
+
+        margin:0 0 11px !important;
     }
+
+    /*
+     * Preserve left alignment for the title.
+     */
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title,
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title a{
+        text-align:left !important;
+    }
+}
 }
  
