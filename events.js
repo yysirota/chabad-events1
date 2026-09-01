@@ -8,8 +8,8 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 
 var d=document;
 var CFG={
-    version:"9.1.0",
-    buildId:"CFLE-FEATURED-2026-07-26-A",
+    version:"9.1.1",
+    buildId:"CFLE-FEATURED-2026-09-01-A",
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
@@ -1638,18 +1638,18 @@ function cardHtml(eventItem,featured,past){
     }
 
     return '<article class="'+className+'">'+
-        '<div class="cfle-date">'+
-            '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
-            '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
-            '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
-        '</div>'+
-        '<div class="cfle-card-body">'+
-            '<h3 class="cfle-event-title"><a href="'+escapeHtml(eventItem.url)+'">'+escapeHtml(eventItem.title)+'</a></h3>'+
-            (featured?'<div class="cfle-tags">'+featuredTag()+'</div>':'')+
-            renderMeta(eventItem)+
-        '</div>'+
-        actions+
-    '</article>';
+    '<div class="cfle-date">'+
+        '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
+        '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
+        '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
+    '</div>'+
+    '<div class="cfle-card-body">'+
+        (featured?'<div class="cfle-tags">'+featuredTag()+'</div>':'')+
+        '<h3 class="cfle-event-title"><a href="'+escapeHtml(eventItem.url)+'">'+escapeHtml(eventItem.title)+'</a></h3>'+
+        renderMeta(eventItem)+
+    '</div>'+
+    actions+
+'</article>';
 }
 
 function findEventById(id){
