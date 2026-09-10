@@ -7,17 +7,29 @@ if(window.CFLE_EVENTS_CLEAN_V1_LOADED){
 window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 
 var d=document;
+
 var CFG={
-    version:"9.1.1",
-    buildId:"CFLE-FEATURED-2026-09-01-A",
+    version:"9.2.0",
+    buildId:"CFLE-UNIVERSAL-PAGES-2026-09-10-A",
+
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
+
     parentAid:"7437974",
-    cacheKey:"cfleEventsCleanV1",
+    cacheKey:"cfleEventsCleanV2",
+
     homepageLimit:4,
     requestTimeoutMs:3000,
+
+    universalScan:{
+        enabled:true,
+        concurrency:6,
+        requestTimeoutMs:3000
+    },
+
     defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
+
     lox:{
         enabled:true,
         title:"Lox & Learn",
@@ -34,18 +46,25 @@ window.CFLE_EVENTS_BUILD_ID=CFG.buildId;
 var state={
     events:[],
     pageEvents:[],
+    universalEvents:[],
     calendarLox:null,
+
     pageDone:false,
+    universalDone:false,
     calendarDone:false,
+
     pageSuccess:false,
+    universalSuccess:false,
     calendarSuccess:false,
+
     initialLoadPending:true,
+
     search:"",
     range:"all",
     bound:false,
     homeWatcherStarted:false
 };
-
+    
 function qs(selector,parent){
     return (parent||d).querySelector(selector);
 }
@@ -740,11 +759,25 @@ function parseYesNo(text,label){
 }
 
 function parseLabeledValue(text,label){
-    var expression=new RegExp(label+"\\s*:\\s*(.*?)(?=(?:Homepage|Upcoming|Featured|Location)\\s*:|$)","i");
-    var match=cleanText(text).match(expression);
-    return match?oneLine(match[1]):"";
-}
+    var labels=
+        "Event\\s*Title|Date|Time|Homepage|Upcoming|Featured|Location";
 
+    var expression=
+        new RegExp(
+            label+
+            "\\s*:\\s*(.*?)"+
+            "(?=(?:"+labels+")\\s*:|$)",
+            "i"
+        );
+
+    var match=
+        oneLine(text).match(expression);
+
+    return match?
+        oneLine(match[1]):
+        "";
+}
+    
 function parsePlacement(text){
     var value=normalized(text);
     var placement={
@@ -1013,6 +1046,704 @@ function parseIndexEvents(doc,keepContainers){
 
     return events;
 }
+
+/* ============================================================
+   UNIVERSAL PAGE / MINISITE EVENT DISCOVERY
+   VERSION 9.2.0
+
+   This does NOT render anything.
+   It only discovers additional event sources.
+
+   ChabadOne exposes:
+   - Index Synopsis       -> meta[name="description"]
+   - Headline/Subheadline -> og:title / title
+   - Public URL           -> og:url / canonical
+
+   The finished event objects are passed into the EXISTING
+   renderer, so no card/design behavior changes.
+   ============================================================ */
+
+function universalCandidates(){
+
+    var out=[];
+    var seen={};
+
+    var host=
+        String(
+            window.location.hostname||""
+        )
+        .toLowerCase()
+        .replace(/^www\./,"");
+
+
+    qsa(
+        "#co_menu_container a[href],"+
+        ".site-nav-wrapper a[href]"
+    ).forEach(function(link){
+
+        var raw=
+            link.getAttribute("href")||"";
+
+        var anchor;
+        var targetHost;
+        var aid;
+        var url;
+
+
+        if(
+            !raw||
+            /^\s*(?:#|javascript:|mailto:|tel:)/i.test(raw)
+        ){
+            return;
+        }
+
+
+        anchor=
+            d.createElement("a");
+
+        anchor.href=
+            raw;
+
+
+        targetHost=
+            String(
+                anchor.hostname||""
+            )
+            .toLowerCase()
+            .replace(/^www\./,"");
+
+
+        if(
+            targetHost&&
+            targetHost!==host
+        ){
+            return;
+        }
+
+
+        aid=
+            (
+                anchor.pathname.match(
+                    /\/aid\/(\d+)(?:\/|$)/i
+                )||[]
+            )[1]||
+
+            (
+                anchor.pathname.match(
+                    /^\/(\d{4,})(?:\/|$)/
+                )||[]
+            )[1]||
+
+            (
+                anchor.search.match(
+                    /[?&]aid=(\d+)/i
+                )||[]
+            )[1]||
+
+            oneLine(
+                link.getAttribute("data-aid")||""
+            );
+
+
+        if(
+            !aid||
+            aid==="0"||
+            seen[aid]
+        ){
+            return;
+        }
+
+
+        if(
+            /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|docx?|xlsx?|zip|mp3|mp4|mov)$/i
+            .test(anchor.pathname||"")
+        ){
+            return;
+        }
+
+
+        seen[aid]=true;
+
+
+        url=
+            window.location.protocol+
+            "//"+
+            window.location.host+
+            (anchor.pathname||"/")+
+            (anchor.search||"");
+
+
+        out.push({
+            aid:aid,
+            url:url,
+            title:meaningfulTitle(link)
+        });
+
+    });
+
+
+    return out;
+}
+
+
+function metaContent(doc,selector){
+
+    var node=
+        qs(
+            selector,
+            doc
+        );
+
+
+    return node?
+        oneLine(
+            node.getAttribute("content")||""
+        ):
+        "";
+}
+
+
+function universalHeadline(doc,fallback){
+
+    var title=
+        metaContent(
+            doc,
+            'meta[property="og:title"]'
+        )||
+
+        metaContent(
+            doc,
+            'meta[name="title"]'
+        )||
+
+        oneLine(
+            doc.title||""
+        );
+
+    var parts;
+    var index;
+
+
+    title=
+        title.replace(
+            /\s+-\s+Chabad of Fort Lee\s*$/i,
+            ""
+        );
+
+
+    parts=
+        title.split(
+            /\s+-\s+/
+        );
+
+
+    for(
+        index=1;
+        index<parts.length;
+        index++
+    ){
+
+        if(
+            parseEventDateTime(
+                parts.slice(index).join(" - ")
+            )
+        ){
+
+            return (
+                oneLine(
+                    parts
+                    .slice(0,index)
+                    .join(" - ")
+                )||
+
+                oneLine(
+                    fallback||""
+                )
+            );
+        }
+    }
+
+
+    return oneLine(
+        title||
+        fallback||
+        ""
+    );
+}
+
+
+function parseUniversalPage(
+    html,
+    candidate
+){
+
+    var doc=
+        new DOMParser()
+        .parseFromString(
+            html,
+            "text/html"
+        );
+
+
+    var synopsis=
+        metaContent(
+            doc,
+            'meta[name="description"]'
+        );
+
+
+    var titleMeta=
+        metaContent(
+            doc,
+            'meta[property="og:title"]'
+        )||
+
+        metaContent(
+            doc,
+            'meta[name="title"]'
+        )||
+
+        oneLine(
+            doc.title||""
+        );
+
+
+    var text=
+        oneLine(
+            titleMeta+
+            " "+
+            synopsis
+        );
+
+
+    var placement=
+        parsePlacement(text);
+
+    var dateInfo=
+        parseEventDateTime(text);
+
+    var eventTitle;
+    var location;
+    var canonical;
+    var url;
+
+
+    if(
+        !placement.recognized||
+        !dateInfo
+    ){
+        return null;
+    }
+
+
+    eventTitle=
+        parseLabeledValue(
+            synopsis,
+            "Event\\s*Title"
+        )||
+
+        universalHeadline(
+            doc,
+            candidate.title
+        );
+
+
+    if(!eventTitle){
+        return null;
+    }
+
+
+    location=
+        parseLabeledValue(
+            synopsis,
+            "Location"
+        )||
+
+        CFG.defaultLocation;
+
+
+    canonical=
+        qs(
+            'link[rel="canonical"]',
+            doc
+        );
+
+
+    url=
+        metaContent(
+            doc,
+            'meta[property="og:url"]'
+        )||
+
+        (
+            canonical?
+                canonical.getAttribute("href")||"":
+                ""
+        )||
+
+        candidate.url;
+
+
+    return {
+
+        id:
+            "page-meta-"+
+            slug(eventTitle)+
+            "-"+
+            dateInfo.startTs,
+
+        title:eventTitle,
+
+        url:
+            absoluteUrl(url),
+
+        startTs:
+            dateInfo.startTs,
+
+        endTs:
+            dateInfo.endTs,
+
+        startParts:
+            dateInfo.startParts,
+
+        endParts:
+            dateInfo.endParts,
+
+        allDay:
+            dateInfo.allDay,
+
+        time:
+            dateInfo.time,
+
+        date:
+            dateInfo.date,
+
+        location:{
+            text:location,
+            name:
+                location.split(",")[0]||
+                location
+        },
+
+        homepage:
+            placement.homepage,
+
+        upcoming:
+            placement.upcoming,
+
+        featured:
+            placement.featured,
+
+        recurring:false,
+
+        sourceType:
+            "page-meta",
+
+        sourceContainer:null
+    };
+}
+
+
+function mergeEventLists(){
+
+    var out=[];
+    var positions={};
+
+
+    [].slice
+        .call(arguments)
+        .forEach(function(list){
+
+
+        (list||[])
+        .forEach(function(item){
+
+            var key=
+                canonicalPath(item.url)+
+                "|"+
+                String(
+                    item.startTs||""
+                );
+
+            var old;
+
+
+            if(
+                typeof positions[key]===
+                    "number"
+            ){
+
+                old=
+                    out[
+                        positions[key]
+                    ];
+
+
+                old.homepage=
+                    !!(
+                        old.homepage||
+                        item.homepage
+                    );
+
+                old.upcoming=
+                    !!(
+                        old.upcoming||
+                        item.upcoming
+                    );
+
+                old.featured=
+                    !!(
+                        old.featured||
+                        item.featured
+                    );
+
+
+                if(
+                    item.sourceType===
+                    "page-meta"
+                ){
+
+                    old.title=
+                        item.title||
+                        old.title;
+
+                    old.location=
+                        item.location||
+                        old.location;
+
+                    old.url=
+                        item.url||
+                        old.url;
+
+                    old.sourceType=
+                        "page-meta";
+                }
+
+
+                return;
+            }
+
+
+            positions[key]=
+                out.length;
+
+            out.push(item);
+
+        });
+
+    });
+
+
+    return out.sort(
+        function(first,second){
+
+            return (
+                first.startTs-
+                second.startTs
+            );
+        }
+    );
+}
+
+
+function requestUniversalPages(
+    callback
+){
+
+    var list=
+        universalCandidates();
+
+    var next=0;
+    var active=0;
+    var finished=0;
+    var successes=0;
+    var events=[];
+
+
+    if(
+        !CFG.universalScan.enabled||
+        !list.length
+    ){
+
+        callback(
+            null,
+            []
+        );
+
+        return;
+    }
+
+
+    function pump(){
+
+        while(
+            active<
+                CFG.universalScan.concurrency&&
+            next<
+                list.length
+        ){
+
+            scan(
+                list[next++]
+            );
+        }
+
+
+        if(
+            finished===
+            list.length
+        ){
+
+            callback(
+
+                successes?
+                    null:
+                    new Error(
+                        "Universal page scan failed"
+                    ),
+
+                mergeEventLists(
+                    events
+                )
+            );
+        }
+    }
+
+
+    function scan(candidate){
+
+        var xhr=
+            new XMLHttpRequest();
+
+        var done=false;
+
+
+        var url=
+            candidate.url+
+
+            (
+                candidate.url.indexOf("?")>-1?
+                    "&":
+                    "?"
+            )+
+
+            "cfle_event_meta="+
+
+            Math.floor(
+                Date.now()/
+                300000
+            );
+
+
+        active++;
+
+
+        xhr.open(
+            "GET",
+            url,
+            true
+        );
+
+
+        xhr.timeout=
+            CFG.universalScan
+                .requestTimeoutMs;
+
+
+        try{
+
+            xhr.setRequestHeader(
+                "Range",
+                "bytes=0-65535"
+            );
+
+        } catch(error){
+        }
+
+
+        function finish(ok){
+
+            var eventItem;
+
+
+            if(done){
+                return;
+            }
+
+
+            done=true;
+            active--;
+            finished++;
+
+
+            if(
+                ok&&
+                xhr.responseText
+            ){
+
+                successes++;
+
+
+                try{
+
+                    eventItem=
+                        parseUniversalPage(
+                            xhr.responseText,
+                            candidate
+                        );
+
+
+                    if(eventItem){
+
+                        events.push(
+                            eventItem
+                        );
+                    }
+
+                } catch(error){
+                }
+            }
+
+
+            pump();
+        }
+
+
+        xhr.onreadystatechange=
+            function(){
+
+                if(
+                    xhr.readyState===4
+                ){
+
+                    finish(
+                        xhr.status>=200&&
+                        xhr.status<300
+                    );
+                }
+            };
+
+
+        xhr.onerror=
+            function(){
+
+                finish(false);
+            };
+
+
+        xhr.ontimeout=
+            function(){
+
+                finish(false);
+            };
+
+
+        xhr.send(null);
+    }
+
+
+    pump();
+}    
 
 function getNewYorkNowParts(){
     var now=new Date();
@@ -1983,91 +2714,270 @@ function renderAll(){
 }
 
 function splitCachedEvents(events){
+
     state.pageEvents=[];
+    state.universalEvents=[];
     state.calendarLox=null;
 
-    (events||[]).forEach(function(eventItem){
+
+    (events||[])
+    .forEach(function(eventItem){
+
         if(
             eventItem.sourceType==="calendar-lox"||
-            normalized(eventItem.title)===normalized(CFG.lox.title)||
-            canonicalPath(eventItem.url)===canonicalPath(CFG.lox.url)
+
+            normalized(
+                eventItem.title
+            )===
+            normalized(
+                CFG.lox.title
+            )||
+
+            canonicalPath(
+                eventItem.url
+            )===
+            canonicalPath(
+                CFG.lox.url
+            )
         ){
-            if(!state.calendarLox||eventItem.startTs<state.calendarLox.startTs){
-                state.calendarLox=eventItem;
+
+            if(
+                !state.calendarLox||
+                eventItem.startTs<
+                    state.calendarLox.startTs
+            ){
+
+                state.calendarLox=
+                    eventItem;
             }
+
+        } else if(
+            eventItem.sourceType===
+            "page-meta"
+        ){
+
+            state.universalEvents.push(
+                eventItem
+            );
+
         } else {
-            state.pageEvents.push(eventItem);
+
+            state.pageEvents.push(
+                eventItem
+            );
         }
     });
 }
 
-function refreshCombinedEvents(writeToStorage){
-    state.events=addSpecialEvents(state.pageEvents);
-    state.initialLoadPending=!(state.pageDone&&state.calendarDone);
+
+function refreshCombinedEvents(
+    writeToStorage
+){
+
+    state.events=
+        addSpecialEvents(
+
+            mergeEventLists(
+                state.pageEvents,
+                state.universalEvents
+            )
+        );
+
+
+    state.initialLoadPending=
+        !(
+            state.pageDone&&
+            state.universalDone&&
+            state.calendarDone
+        );
+
+
     renderAll();
 
+
     if(writeToStorage){
-        writeCache(state.events);
+
+        writeCache(
+            state.events
+        );
     }
 }
 
+
 function loadEvents(){
-    var cached=readCache();
+
+    var cached;
     var currentEvents=[];
 
-    splitCachedEvents(cached);
 
-    if(qs("#cfle-events")){
-        currentEvents=parseIndexEvents(d,true);
-        if(currentEvents.length){
-            hideNativeSourceContainers(currentEvents);
-            state.pageEvents=currentEvents;
+    var isHome=
+        d.body&&
+        /(^|\s)home(?:\s|$)/
+        .test(
+            d.body.className||""
+        );
+
+
+    if(
+        !isHome&&
+        !qs("#cfle-events")&&
+        !qs("#cfle-past-events")
+    ){
+
+        return;
+    }
+
+
+    cached=
+        readCache();
+
+
+    splitCachedEvents(
+        cached
+    );
+
+
+    if(
+        qs("#cfle-events")
+    ){
+
+        currentEvents=
+            parseIndexEvents(
+                d,
+                true
+            );
+
+
+        if(
+            currentEvents.length
+        ){
+
+            hideNativeSourceContainers(
+                currentEvents
+            );
+
+            state.pageEvents=
+                currentEvents;
         }
     }
 
-    /*
-     * Paint immediately from the last known combined result.
-     * With no cache, paint the normal in-layout loading state.
-     */
-    refreshCombinedEvents(false);
 
-    /*
-     * Both independent sources start at once.  Whichever returns
-     * first can update the page immediately; neither waits for the
-     * other.  The hard timeout prevents an endless blank/loading state.
-     */
-    requestCalendarLox(function(error,eventItem){
-        state.calendarDone=true;
-        state.calendarSuccess=!error;
+    refreshCombinedEvents(
+        false
+    );
 
-        if(!error){
-            state.calendarLox=eventItem||null;
-        }
 
-        refreshCombinedEvents(
-            state.calendarSuccess||state.pageSuccess
-        );
-    });
+    requestCalendarLox(
+        function(
+            error,
+            eventItem
+        ){
 
-    requestSource(function(error,html){
-        var fresh;
+            state.calendarDone=
+                true;
 
-        state.pageDone=true;
-        state.pageSuccess=!error;
+            state.calendarSuccess=
+                !error;
 
-        if(!error&&html){
-            try{
-                fresh=parseSourceHtml(html);
-                state.pageEvents=fresh;
-            } catch(parseError){
-                state.pageSuccess=false;
+
+            if(!error){
+
+                state.calendarLox=
+                    eventItem||
+                    null;
             }
-        }
 
-        refreshCombinedEvents(
-            state.calendarSuccess||state.pageSuccess
-        );
-    });
+
+            refreshCombinedEvents(
+
+                state.calendarSuccess||
+                state.pageSuccess||
+                state.universalSuccess
+            );
+        }
+    );
+
+
+    requestSource(
+        function(
+            error,
+            html
+        ){
+
+            var fresh;
+
+
+            state.pageDone=
+                true;
+
+            state.pageSuccess=
+                !error;
+
+
+            if(
+                !error&&
+                html
+            ){
+
+                try{
+
+                    fresh=
+                        parseSourceHtml(
+                            html
+                        );
+
+                    state.pageEvents=
+                        fresh;
+
+                } catch(
+                    parseError
+                ){
+
+                    state.pageSuccess=
+                        false;
+                }
+            }
+
+
+            refreshCombinedEvents(
+
+                state.calendarSuccess||
+                state.pageSuccess||
+                state.universalSuccess
+            );
+        }
+    );
+
+
+    requestUniversalPages(
+        function(
+            error,
+            fresh
+        ){
+
+            state.universalDone=
+                true;
+
+            state.universalSuccess=
+                !error;
+
+
+            if(!error){
+
+                state.universalEvents=
+                    fresh||
+                    [];
+            }
+
+
+            refreshCombinedEvents(
+
+                state.calendarSuccess||
+                state.pageSuccess||
+                state.universalSuccess
+            );
+        }
+    );
 }
 
 function start(){
