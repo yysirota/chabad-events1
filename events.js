@@ -9,23 +9,25 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 var d=document;
 
 var CFG={
-    version:"9.2.0",
-    buildId:"CFLE-UNIVERSAL-PAGES-2026-09-10-A",
+    version:"9.3.0",
+    buildId:"CFLE-FAST-UNIVERSAL-2026-09-10-A",
 
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
 
     parentAid:"7437974",
-    cacheKey:"cfleEventsCleanV2",
+    cacheKey:"cfleEventsCleanV3",
 
     homepageLimit:4,
     requestTimeoutMs:3000,
 
     universalScan:{
         enabled:true,
-        concurrency:6,
-        requestTimeoutMs:3000
+        concurrency:10,
+        requestTimeoutMs:2500,
+        maxCandidates:80,
+        rangeBytes:65535
     },
 
     defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
@@ -1049,7 +1051,7 @@ function parseIndexEvents(doc,keepContainers){
 
 /* ============================================================
    UNIVERSAL PAGE / MINISITE EVENT DISCOVERY
-   VERSION 9.2.0
+   VERSION 9.3.0
 
    This does NOT render anything.
    It only discovers additional event sources.
@@ -1058,6 +1060,12 @@ function parseIndexEvents(doc,keepContainers){
    - Index Synopsis       -> meta[name="description"]
    - Headline/Subheadline -> og:title / title
    - Public URL           -> og:url / canonical
+
+   Candidates are scanned concurrently and each discovered
+   event streams back to the caller as soon as its page
+   responds, instead of waiting for the whole batch to finish.
+   This is what lets events appear quickly instead of all at
+   once at the end of the scan.
 
    The finished event objects are passed into the EXISTING
    renderer, so no card/design behavior changes.
@@ -1547,7 +1555,8 @@ function mergeEventLists(){
 
 
 function requestUniversalPages(
-    callback
+    onEvent,
+    onDone
 ){
 
     var list=
@@ -1557,7 +1566,25 @@ function requestUniversalPages(
     var active=0;
     var finished=0;
     var successes=0;
-    var events=[];
+
+
+    /*
+     * Safety cap - a pathologically large nav tree should
+     * never be allowed to turn into an unbounded number of
+     * concurrent page fetches.
+     */
+    if(
+        CFG.universalScan.maxCandidates&&
+        list.length>
+            CFG.universalScan.maxCandidates
+    ){
+
+        list=
+            list.slice(
+                0,
+                CFG.universalScan.maxCandidates
+            );
+    }
 
 
     if(
@@ -1565,10 +1592,7 @@ function requestUniversalPages(
         !list.length
     ){
 
-        callback(
-            null,
-            []
-        );
+        onDone(null);
 
         return;
     }
@@ -1594,17 +1618,12 @@ function requestUniversalPages(
             list.length
         ){
 
-            callback(
-
+            onDone(
                 successes?
                     null:
                     new Error(
                         "Universal page scan failed"
-                    ),
-
-                mergeEventLists(
-                    events
-                )
+                    )
             );
         }
     }
@@ -1654,7 +1673,8 @@ function requestUniversalPages(
 
             xhr.setRequestHeader(
                 "Range",
-                "bytes=0-65535"
+                "bytes=0-"+
+                    CFG.universalScan.rangeBytes
             );
 
         } catch(error){
@@ -1695,7 +1715,14 @@ function requestUniversalPages(
 
                     if(eventItem){
 
-                        events.push(
+                        /*
+                         * Stream this single discovery back
+                         * immediately - the caller merges it
+                         * into the live view right away rather
+                         * than waiting for every other
+                         * candidate to also finish.
+                         */
+                        onEvent(
                             eventItem
                         );
                     }
@@ -1705,6 +1732,10 @@ function requestUniversalPages(
             }
 
 
+            /*
+             * Refill the pool right away so one slow
+             * candidate never idles the rest of it.
+             */
             pump();
         }
 
@@ -1743,7 +1774,7 @@ function requestUniversalPages(
 
 
     pump();
-}    
+}
 
 function getNewYorkNowParts(){
     var now=new Date();
@@ -2770,6 +2801,47 @@ function splitCachedEvents(events){
 }
 
 
+/*
+ * Multiple sources can each finish (or, for the universal
+ * scan, report a single new discovery) within the same
+ * handful of milliseconds. Coalescing those into one
+ * render per animation frame avoids doing the same
+ * innerHTML work several times over for no visible benefit.
+ */
+var cfleRefreshQueued=false;
+var cfleRefreshWritePending=false;
+
+function scheduleRefresh(writeToStorage){
+
+    cfleRefreshWritePending=
+        cfleRefreshWritePending||
+        writeToStorage;
+
+    if(cfleRefreshQueued){
+        return;
+    }
+
+    cfleRefreshQueued=true;
+
+    var raf=
+        window.requestAnimationFrame||
+        function(fn){
+            return window.setTimeout(fn,16);
+        };
+
+    raf(function(){
+
+        var write=
+            cfleRefreshWritePending;
+
+        cfleRefreshQueued=false;
+        cfleRefreshWritePending=false;
+
+        refreshCombinedEvents(write);
+    });
+}
+
+
 function refreshCombinedEvents(
     writeToStorage
 ){
@@ -2808,6 +2880,7 @@ function loadEvents(){
 
     var cached;
     var currentEvents=[];
+    var universalScanBuffer=[];
 
 
     var isHome=
@@ -2862,9 +2935,13 @@ function loadEvents(){
     }
 
 
-    refreshCombinedEvents(
-        false
-    );
+    /*
+     * Paint immediately from the last known combined result.
+     * With no cache, paint the normal in-layout loading state.
+     * This first paint stays synchronous (no rAF delay) so
+     * cached events show up the instant the page is ready.
+     */
+    refreshCombinedEvents(false);
 
 
     requestCalendarLox(
@@ -2888,7 +2965,7 @@ function loadEvents(){
             }
 
 
-            refreshCombinedEvents(
+            scheduleRefresh(
 
                 state.calendarSuccess||
                 state.pageSuccess||
@@ -2939,7 +3016,7 @@ function loadEvents(){
             }
 
 
-            refreshCombinedEvents(
+            scheduleRefresh(
 
                 state.calendarSuccess||
                 state.pageSuccess||
@@ -2949,11 +3026,30 @@ function loadEvents(){
     );
 
 
+    /*
+     * Universal candidates stream back one page at a time.
+     * Each discovered event is merged into the live view the
+     * moment its page responds, instead of waiting for every
+     * candidate in the batch to finish first.
+     */
     requestUniversalPages(
-        function(
-            error,
-            fresh
-        ){
+
+        function(eventItem){
+
+            universalScanBuffer.push(
+                eventItem
+            );
+
+            state.universalEvents=
+                mergeEventLists(
+                    state.universalEvents,
+                    [eventItem]
+                );
+
+            scheduleRefresh(true);
+        },
+
+        function(error){
 
             state.universalDone=
                 true;
@@ -2964,13 +3060,19 @@ function loadEvents(){
 
             if(!error){
 
+                /*
+                 * Snap to exactly what this scan confirmed,
+                 * so a page that no longer qualifies as an
+                 * event (or dropped out of navigation) is
+                 * correctly pruned rather than lingering
+                 * from a stale cached copy.
+                 */
                 state.universalEvents=
-                    fresh||
-                    [];
+                    universalScanBuffer;
             }
 
 
-            refreshCombinedEvents(
+            scheduleRefresh(
 
                 state.calendarSuccess||
                 state.pageSuccess||
@@ -3010,4 +3112,3 @@ if(d.readyState==="loading"){
 }
 
 })();
-
