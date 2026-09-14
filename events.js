@@ -9,25 +9,24 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 var d=document;
 
 var CFG={
-    version:"9.3.0",
-    buildId:"CFLE-FAST-UNIVERSAL-2026-09-10-A",
+    version:"9.4.0",
+    buildId:"CFLE-REGISTRY-2026-09-11-A",
 
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
 
     parentAid:"7437974",
-    cacheKey:"cfleEventsCleanV3",
+    cacheKey:"cfleEventsCleanV4",
 
     homepageLimit:4,
     requestTimeoutMs:3000,
 
-    universalScan:{
+    registry:{
         enabled:true,
-        concurrency:10,
-        requestTimeoutMs:2500,
-        maxCandidates:80,
-        rangeBytes:65535
+        concurrency:4,
+        requestTimeoutMs:3000,
+        maxTargets:20
     },
 
     defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
@@ -48,15 +47,15 @@ window.CFLE_EVENTS_BUILD_ID=CFG.buildId;
 var state={
     events:[],
     pageEvents:[],
-    universalEvents:[],
+    registryEvents:[],
     calendarLox:null,
 
     pageDone:false,
-    universalDone:false,
+    registryDone:false,
     calendarDone:false,
 
     pageSuccess:false,
-    universalSuccess:false,
+    registrySuccess:false,
     calendarSuccess:false,
 
     initialLoadPending:true,
@@ -1009,12 +1008,19 @@ function parseIndexEvents(doc,keepContainers){
         placement=parsePlacement(text);
         dateInfo=parseEventDateTime(text);
 
-        if(!placement.recognized||!dateInfo){
+                if(!placement.recognized||!dateInfo){
             continue;
         }
 
-        location=parseLabeledValue(text,"Location")||CFG.defaultLocation;
+        title=
+            parseLabeledValue(
+                text,
+                "Event\\s*Title"
+            )||
+            title;
 
+        location=parseLabeledValue(text,"Location")||CFG.defaultLocation;
+        
         eventItem={
             id:"page-"+slug(title)+"-"+dateInfo.startTs,
             title:title,
@@ -1050,732 +1056,406 @@ function parseIndexEvents(doc,keepContainers){
 }
 
 /* ============================================================
-   UNIVERSAL PAGE / MINISITE EVENT DISCOVERY
-   VERSION 9.3.0
-
-   This does NOT render anything.
-   It only discovers additional event sources.
-
-   ChabadOne exposes:
-   - Index Synopsis       -> meta[name="description"]
-   - Headline/Subheadline -> og:title / title
-   - Public URL           -> og:url / canonical
-
-   Candidates are scanned concurrently and each discovered
-   event streams back to the caller as soon as its page
-   responds, instead of waiting for the whole batch to finish.
-   This is what lets events appear quickly instead of all at
-   once at the end of the scan.
-
-   The finished event objects are passed into the EXISTING
-   renderer, so no card/design behavior changes.
+   UPCOMING AT CHABAD EVENT REGISTRY — v9.4.0
    ============================================================ */
 
-function universalCandidates(){
-
-    var out=[];
-    var seen={};
-
-    var host=
-        String(
-            window.location.hostname||""
-        )
-        .toLowerCase()
-        .replace(/^www\./,"");
-
-
-    qsa(
-        "#co_menu_container a[href],"+
-        ".site-nav-wrapper a[href]"
-    ).forEach(function(link){
-
-        var raw=
-            link.getAttribute("href")||"";
-
-        var anchor;
-        var targetHost;
-        var aid;
-        var url;
-
-
-        if(
-            !raw||
-            /^\s*(?:#|javascript:|mailto:|tel:)/i.test(raw)
-        ){
-            return;
-        }
-
-
-        anchor=
-            d.createElement("a");
-
-        anchor.href=
-            raw;
-
-
-        targetHost=
-            String(
-                anchor.hostname||""
-            )
-            .toLowerCase()
-            .replace(/^www\./,"");
-
-
-        if(
-            targetHost&&
-            targetHost!==host
-        ){
-            return;
-        }
-
-
-        aid=
-            (
-                anchor.pathname.match(
-                    /\/aid\/(\d+)(?:\/|$)/i
-                )||[]
-            )[1]||
-
-            (
-                anchor.pathname.match(
-                    /^\/(\d{4,})(?:\/|$)/
-                )||[]
-            )[1]||
-
-            (
-                anchor.search.match(
-                    /[?&]aid=(\d+)/i
-                )||[]
-            )[1]||
-
-            oneLine(
-                link.getAttribute("data-aid")||""
-            );
-
-
-        if(
-            !aid||
-            aid==="0"||
-            seen[aid]
-        ){
-            return;
-        }
-
-
-        if(
-            /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|docx?|xlsx?|zip|mp3|mp4|mov)$/i
-            .test(anchor.pathname||"")
-        ){
-            return;
-        }
-
-
-        seen[aid]=true;
-
-
-        url=
-            window.location.protocol+
-            "//"+
-            window.location.host+
-            (anchor.pathname||"/")+
-            (anchor.search||"");
-
-
-        out.push({
-            aid:aid,
-            url:url,
-            title:meaningfulTitle(link)
-        });
-
-    });
-
-
-    return out;
-}
-
-
 function metaContent(doc,selector){
-
-    var node=
-        qs(
-            selector,
-            doc
-        );
-
-
-    return node?
-        oneLine(
-            node.getAttribute("content")||""
-        ):
-        "";
+    var node=qs(selector,doc);
+    return node?oneLine(node.getAttribute("content")||""):"";
 }
 
-
-function universalHeadline(doc,fallback){
-
+function registryTargetHeadline(doc,fallback){
     var title=
-        metaContent(
-            doc,
-            'meta[property="og:title"]'
-        )||
-
-        metaContent(
-            doc,
-            'meta[name="title"]'
-        )||
-
-        oneLine(
-            doc.title||""
-        );
-
+        metaContent(doc,'meta[property="og:title"]')||
+        metaContent(doc,'meta[name="title"]')||
+        oneLine(doc.title||"");
     var parts;
     var index;
 
+    title=title.replace(/\s+-\s+Chabad of Fort Lee\s*$/i,"");
+    parts=title.split(/\s+-\s+/);
 
-    title=
-        title.replace(
-            /\s+-\s+Chabad of Fort Lee\s*$/i,
-            ""
-        );
-
-
-    parts=
-        title.split(
-            /\s+-\s+/
-        );
-
-
-    for(
-        index=1;
-        index<parts.length;
-        index++
-    ){
-
-        if(
-            parseEventDateTime(
-                parts.slice(index).join(" - ")
-            )
-        ){
-
-            return (
-                oneLine(
-                    parts
-                    .slice(0,index)
-                    .join(" - ")
-                )||
-
-                oneLine(
-                    fallback||""
-                )
-            );
+    for(index=1;index<parts.length;index++){
+        if(parseEventDateTime(parts.slice(index).join(" - "))){
+            return oneLine(parts.slice(0,index).join(" - "))||oneLine(fallback||"");
         }
     }
 
-
-    return oneLine(
-        title||
-        fallback||
-        ""
-    );
+    return oneLine(title||fallback||"");
 }
 
-
-function parseUniversalPage(
-    html,
-    candidate
-){
-
-    var doc=
-        new DOMParser()
-        .parseFromString(
-            html,
-            "text/html"
-        );
-
-
-    var synopsis=
-        metaContent(
-            doc,
-            'meta[name="description"]'
-        );
-
-
+function parseRegistryTargetPage(html,candidate){
+    var doc=new DOMParser().parseFromString(html,"text/html");
+    var synopsis=metaContent(doc,'meta[name="description"]');
     var titleMeta=
-        metaContent(
-            doc,
-            'meta[property="og:title"]'
-        )||
-
-        metaContent(
-            doc,
-            'meta[name="title"]'
-        )||
-
-        oneLine(
-            doc.title||""
-        );
-
-
-    var text=
-        oneLine(
-            titleMeta+
-            " "+
-            synopsis
-        );
-
-
-    var placement=
-        parsePlacement(text);
-
-    var dateInfo=
-        parseEventDateTime(text);
-
+        metaContent(doc,'meta[property="og:title"]')||
+        metaContent(doc,'meta[name="title"]')||
+        oneLine(doc.title||"");
+    var text=oneLine(titleMeta+" "+synopsis);
+    var placement=parsePlacement(text);
+    var dateInfo=parseEventDateTime(text);
     var eventTitle;
     var location;
     var canonical;
     var url;
 
-
-    if(
-        !placement.recognized||
-        !dateInfo
-    ){
+    /*
+     * A registry link is not enough by itself. The target page
+     * must still contain recognized placement metadata AND a date.
+     */
+    if(!placement.recognized||!dateInfo){
         return null;
     }
 
-
     eventTitle=
-        parseLabeledValue(
-            synopsis,
-            "Event\\s*Title"
-        )||
-
-        universalHeadline(
-            doc,
-            candidate.title
-        );
-
+        parseLabeledValue(synopsis,"Event\\s*Title")||
+        registryTargetHeadline(doc,candidate.title);
 
     if(!eventTitle){
         return null;
     }
 
-
-    location=
-        parseLabeledValue(
-            synopsis,
-            "Location"
-        )||
-
-        CFG.defaultLocation;
-
-
-    canonical=
-        qs(
-            'link[rel="canonical"]',
-            doc
-        );
-
+    location=parseLabeledValue(synopsis,"Location")||CFG.defaultLocation;
+    canonical=qs('link[rel="canonical"]',doc);
 
     url=
-        metaContent(
-            doc,
-            'meta[property="og:url"]'
-        )||
-
-        (
-            canonical?
-                canonical.getAttribute("href")||"":
-                ""
-        )||
-
+        metaContent(doc,'meta[property="og:url"]')||
+        (canonical?canonical.getAttribute("href")||"":"")||
         candidate.url;
 
-
     return {
-
-        id:
-            "page-meta-"+
-            slug(eventTitle)+
-            "-"+
-            dateInfo.startTs,
-
+        id:"registry-"+slug(eventTitle)+"-"+dateInfo.startTs,
         title:eventTitle,
-
-        url:
-            absoluteUrl(url),
-
-        startTs:
-            dateInfo.startTs,
-
-        endTs:
-            dateInfo.endTs,
-
-        startParts:
-            dateInfo.startParts,
-
-        endParts:
-            dateInfo.endParts,
-
-        allDay:
-            dateInfo.allDay,
-
-        time:
-            dateInfo.time,
-
-        date:
-            dateInfo.date,
-
+        url:absoluteUrl(url),
+        startTs:dateInfo.startTs,
+        endTs:dateInfo.endTs,
+        startParts:dateInfo.startParts,
+        endParts:dateInfo.endParts,
+        allDay:dateInfo.allDay,
+        time:dateInfo.time,
+        date:dateInfo.date,
         location:{
             text:location,
-            name:
-                location.split(",")[0]||
-                location
+            name:location.split(",")[0]||location
         },
-
-        homepage:
-            placement.homepage,
-
-        upcoming:
-            placement.upcoming,
-
-        featured:
-            placement.featured,
-
+        homepage:placement.homepage,
+        upcoming:placement.upcoming,
+        featured:placement.featured,
         recurring:false,
-
-        sourceType:
-            "page-meta",
-
+        sourceType:"registry-target",
         sourceContainer:null
     };
 }
 
-
 function mergeEventLists(){
-
     var out=[];
     var positions={};
 
-
-    [].slice
-        .call(arguments)
-        .forEach(function(list){
-
-
-        (list||[])
-        .forEach(function(item){
-
-            var key=
-                canonicalPath(item.url)+
-                "|"+
-                String(
-                    item.startTs||""
-                );
-
+    [].slice.call(arguments).forEach(function(list){
+        (list||[]).forEach(function(item){
+            var key=canonicalPath(item.url)+"|"+String(item.startTs||"");
             var old;
 
+            if(typeof positions[key]==="number"){
+                old=out[positions[key]];
+                old.homepage=!!(old.homepage||item.homepage);
+                old.upcoming=!!(old.upcoming||item.upcoming);
+                old.featured=!!(old.featured||item.featured);
 
-            if(
-                typeof positions[key]===
-                    "number"
-            ){
-
-                old=
-                    out[
-                        positions[key]
-                    ];
-
-
-                old.homepage=
-                    !!(
-                        old.homepage||
-                        item.homepage
-                    );
-
-                old.upcoming=
-                    !!(
-                        old.upcoming||
-                        item.upcoming
-                    );
-
-                old.featured=
-                    !!(
-                        old.featured||
-                        item.featured
-                    );
-
-
-                if(
-                    item.sourceType===
-                    "page-meta"
-                ){
-
-                    old.title=
-                        item.title||
-                        old.title;
-
-                    old.location=
-                        item.location||
-                        old.location;
-
-                    old.url=
-                        item.url||
-                        old.url;
-
-                    old.sourceType=
-                        "page-meta";
+                if(item.sourceType==="registry-target"){
+                    old.title=item.title||old.title;
+                    old.location=item.location||old.location;
+                    old.url=item.url||old.url;
+                    old.sourceType="registry-target";
                 }
-
-
                 return;
             }
 
-
-            positions[key]=
-                out.length;
-
+            positions[key]=out.length;
             out.push(item);
-
         });
-
     });
 
+    out.sort(function(first,second){
+        return first.startTs-second.startTs;
+    });
 
-    return out.sort(
-        function(first,second){
-
-            return (
-                first.startTs-
-                second.startTs
-            );
-        }
-    );
+    return out;
 }
 
+function normalizedHost(host){
+    return String(host||"").toLowerCase().replace(/^www\./,"");
+}
 
-function requestUniversalPages(
-    onEvent,
-    onDone
-){
+function registryUrlInfo(raw){
+    var anchor;
+    var href;
 
-    var list=
-        universalCandidates();
+    if(!raw||/^\s*(?:#|javascript:|mailto:|tel:)/i.test(raw)){
+        return null;
+    }
 
+    anchor=d.createElement("a");
+    anchor.href=raw;
+
+    if(
+        normalizedHost(anchor.hostname)!==
+        normalizedHost(window.location.hostname)
+    ){
+        return null;
+    }
+
+    if(
+        /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|docx?|xlsx?|zip|mp3|mp4|mov)$/i
+        .test(anchor.pathname||"")
+    ){
+        return null;
+    }
+
+    href=
+        window.location.protocol+"//"+
+        window.location.host+
+        (anchor.pathname||"/")+
+        (anchor.search||"");
+
+    return {
+        href:href,
+        path:canonicalPath(href)
+    };
+}
+
+function registryCandidates(doc,directEvents){
+    var output=[];
+    var seen={};
+    var alreadyParsed={};
+    var sourcePath=canonicalPath(CFG.sourceUrl);
+    var upcomingPath=canonicalPath(CFG.upcomingUrl);
+    var pastPath=canonicalPath(CFG.pastUrl);
+    var loxPath=canonicalPath(CFG.lox.url);
+    var menuRoot;
+    var contentRoot;
+
+    (directEvents||[]).forEach(function(eventItem){
+        alreadyParsed[canonicalPath(eventItem.url)]=true;
+    });
+
+    function add(link,authoritative){
+        var info=registryUrlInfo(link.getAttribute("href")||"");
+        var title;
+
+        if(!info){
+            return;
+        }
+
+        if(
+            !info.path||
+            info.path===sourcePath||
+            info.path===upcomingPath||
+            info.path===pastPath||
+            info.path===loxPath||
+            alreadyParsed[info.path]||
+            seen[info.path]
+        ){
+            return;
+        }
+
+        /*
+         * Direct level-2 children under Upcoming at Chabad are
+         * authoritative registry entries regardless of URL shape.
+         * Content-area fallback links must look like ChabadOne pages.
+         */
+        if(
+            !authoritative&&
+            !(
+                /\/aid\/\d+(?:\/|$)/i.test(info.path)||
+                /^\/\d{4,}(?:\/|$)/.test(info.path)||
+                /\/templates\/[^\/]+_cdo\//i.test(info.path)
+            )
+        ){
+            return;
+        }
+
+        title=
+            meaningfulTitle(link)||
+            oneLine(link.getAttribute("title")||"");
+
+        seen[info.path]=true;
+
+        output.push({
+            url:info.href,
+            path:info.path,
+            title:title
+        });
+    }
+
+    /*
+     * PRIMARY SOURCE:
+     * only direct level-2 children of Upcoming at Chabad.
+     * This intentionally excludes level-3 descendants of Past Events.
+     */
+    menuRoot=qs(
+        'td.co_menu_item[aid="'+CFG.parentAid+'"]',
+        doc
+    );
+
+    if(menuRoot){
+        qsa(
+            '.co_submenu_container a[data-menu-level="2"][href]',
+            menuRoot
+        ).forEach(function(link){
+            add(link,true);
+        });
+    }
+
+    /*
+     * FALLBACK:
+     * some templates may expose a New Link only in the native
+     * Upcoming page content. This still scans ONLY that page.
+     */
+    contentRoot=qs("#ContentBody",doc)||qs("#co_body_container",doc);
+
+    if(contentRoot){
+        qsa("a[href]",contentRoot).forEach(function(link){
+            if(!isNavigationAnchor(link)){
+                add(link,false);
+            }
+        });
+    }
+
+    if(CFG.registry.maxTargets&&output.length>CFG.registry.maxTargets){
+        output=output.slice(0,CFG.registry.maxTargets);
+    }
+
+    window.CFLE_EVENTS_REGISTRY_DEBUG=
+        window.CFLE_EVENTS_REGISTRY_DEBUG||{};
+
+    window.CFLE_EVENTS_REGISTRY_DEBUG.candidates=output.slice(0);
+
+    return output;
+}
+
+function parseRegistrySourceHtml(html){
+    var doc=new DOMParser().parseFromString(html,"text/html");
+    var directEvents=parseIndexEvents(doc,false);
+
+    return {
+        events:directEvents,
+        candidates:registryCandidates(doc,directEvents)
+    };
+}
+
+function requestRegistryTargets(candidates,onEvent,onDone){
+    var list=(candidates||[]).slice(0);
     var next=0;
     var active=0;
     var finished=0;
-    var successes=0;
+    var failures=0;
 
+    window.CFLE_EVENTS_REGISTRY_DEBUG=
+        window.CFLE_EVENTS_REGISTRY_DEBUG||{};
 
-    /*
-     * Safety cap - a pathologically large nav tree should
-     * never be allowed to turn into an unbounded number of
-     * concurrent page fetches.
-     */
-    if(
-        CFG.universalScan.maxCandidates&&
-        list.length>
-            CFG.universalScan.maxCandidates
-    ){
+    window.CFLE_EVENTS_REGISTRY_DEBUG.targetFetchCount=0;
+    window.CFLE_EVENTS_REGISTRY_DEBUG.targets=[];
+    window.CFLE_EVENTS_REGISTRY_DEBUG.events=[];
 
-        list=
-            list.slice(
-                0,
-                CFG.universalScan.maxCandidates
-            );
-    }
-
-
-    if(
-        !CFG.universalScan.enabled||
-        !list.length
-    ){
-
+    if(!CFG.registry.enabled||!list.length){
         onDone(null);
-
         return;
     }
 
-
     function pump(){
-
-        while(
-            active<
-                CFG.universalScan.concurrency&&
-            next<
-                list.length
-        ){
-
-            scan(
-                list[next++]
-            );
+        while(active<CFG.registry.concurrency&&next<list.length){
+            scan(list[next++]);
         }
 
-
-        if(
-            finished===
-            list.length
-        ){
-
+        if(finished===list.length){
             onDone(
-                successes?
-                    null:
-                    new Error(
-                        "Universal page scan failed"
-                    )
+                failures?
+                new Error(String(failures)+" registry target request(s) failed"):
+                null
             );
         }
     }
 
-
     function scan(candidate){
-
-        var xhr=
-            new XMLHttpRequest();
-
+        var xhr=new XMLHttpRequest();
         var done=false;
-
-
+        var started=Date.now();
         var url=
             candidate.url+
-
-            (
-                candidate.url.indexOf("?")>-1?
-                    "&":
-                    "?"
-            )+
-
-            "cfle_event_meta="+
-
-            Math.floor(
-                Date.now()/
-                300000
-            );
-
+            (candidate.url.indexOf("?")>-1?"&":"?")+
+            "cfle_event_registry="+
+            Date.now();
 
         active++;
+        window.CFLE_EVENTS_REGISTRY_DEBUG.targetFetchCount++;
 
-
-        xhr.open(
-            "GET",
-            url,
-            true
-        );
-
-
-        xhr.timeout=
-            CFG.universalScan
-                .requestTimeoutMs;
-
-
-        try{
-
-            xhr.setRequestHeader(
-                "Range",
-                "bytes=0-"+
-                    CFG.universalScan.rangeBytes
-            );
-
-        } catch(error){
-        }
-
+        xhr.open("GET",url,true);
+        xhr.timeout=CFG.registry.requestTimeoutMs;
 
         function finish(ok){
-
             var eventItem;
-
 
             if(done){
                 return;
             }
 
-
             done=true;
             active--;
             finished++;
 
+            window.CFLE_EVENTS_REGISTRY_DEBUG.targets.push({
+                url:candidate.url,
+                ok:!!ok,
+                status:xhr.status||0,
+                milliseconds:Date.now()-started
+            });
 
-            if(
-                ok&&
-                xhr.responseText
-            ){
-
-                successes++;
-
-
+            if(ok&&xhr.responseText){
                 try{
-
-                    eventItem=
-                        parseUniversalPage(
-                            xhr.responseText,
-                            candidate
-                        );
-
+                    eventItem=parseRegistryTargetPage(
+                        xhr.responseText,
+                        candidate
+                    );
 
                     if(eventItem){
-
-                        /*
-                         * Stream this single discovery back
-                         * immediately - the caller merges it
-                         * into the live view right away rather
-                         * than waiting for every other
-                         * candidate to also finish.
-                         */
-                        onEvent(
-                            eventItem
-                        );
+                        window.CFLE_EVENTS_REGISTRY_DEBUG.events.push(eventItem);
+                        onEvent(eventItem);
                     }
-
                 } catch(error){
+                    failures++;
                 }
+            } else {
+                failures++;
             }
 
-
-            /*
-             * Refill the pool right away so one slow
-             * candidate never idles the rest of it.
-             */
             pump();
         }
 
+        xhr.onreadystatechange=function(){
+            if(xhr.readyState===4){
+                finish(xhr.status>=200&&xhr.status<300);
+            }
+        };
 
-        xhr.onreadystatechange=
-            function(){
+        xhr.onerror=function(){
+            finish(false);
+        };
 
-                if(
-                    xhr.readyState===4
-                ){
+        xhr.ontimeout=function(){
+            finish(false);
+        };
 
-                    finish(
-                        xhr.status>=200&&
-                        xhr.status<300
-                    );
-                }
-            };
-
-
-        xhr.onerror=
-            function(){
-
-                finish(false);
-            };
-
-
-        xhr.ontimeout=
-            function(){
-
-                finish(false);
-            };
-
-
+        /*
+         * No Range header: there are only a few explicit registry
+         * targets, so a normal same-origin GET is simpler/reliable.
+         */
         xhr.send(null);
     }
 
-
     pump();
 }
-
+    
 function getNewYorkNowParts(){
     var now=new Date();
     var parts;
@@ -2121,50 +1801,65 @@ function writeCache(events){
 function requestSource(callback){
     var request;
     var completed=false;
-    var url=CFG.sourceUrl+
+    var started=Date.now();
+    var url=
+        CFG.sourceUrl+
         (CFG.sourceUrl.indexOf("?")>-1?"&":"?")+
-        "cfle_events_clean="+
+        "cfle_events_registry="+
         Date.now();
 
     function finish(error,html){
         if(completed){
             return;
         }
+
         completed=true;
+
+        window.CFLE_EVENTS_REGISTRY_DEBUG=
+            window.CFLE_EVENTS_REGISTRY_DEBUG||{};
+
+        window.CFLE_EVENTS_REGISTRY_DEBUG.source={
+            ok:!error,
+            status:request?request.status||0:0,
+            milliseconds:Date.now()-started
+        };
+
         callback(error,html);
     }
 
     request=new XMLHttpRequest();
     request.open("GET",url,true);
     request.timeout=CFG.requestTimeoutMs;
+
     request.onreadystatechange=function(){
         if(request.readyState!==4){
             return;
         }
+
         if(request.status>=200&&request.status<300){
             finish(null,request.responseText);
         } else {
             finish(
-                new Error("Upcoming-page request failed: "+String(request.status||"unknown")),
+                new Error(
+                    "Upcoming-page request failed: "+
+                    String(request.status||"unknown")
+                ),
                 ""
             );
         }
     };
+
     request.onerror=function(){
         finish(new Error("Upcoming-page network error"),"");
     };
+
     request.ontimeout=function(){
         finish(new Error("Upcoming-page request timed out"),"");
     };
+
     request.send(null);
 }
-
-function parseSourceHtml(html){
-    var parser=new DOMParser();
-    var doc=parser.parseFromString(html,"text/html");
-    return parseIndexEvents(doc,false);
-}
-
+    
 function nowTs(){
     return Date.now();
 }
@@ -2745,74 +2440,38 @@ function renderAll(){
 }
 
 function splitCachedEvents(events){
-
     state.pageEvents=[];
-    state.universalEvents=[];
+    state.registryEvents=[];
     state.calendarLox=null;
 
-
-    (events||[])
-    .forEach(function(eventItem){
-
+    (events||[]).forEach(function(eventItem){
         if(
             eventItem.sourceType==="calendar-lox"||
-
-            normalized(
-                eventItem.title
-            )===
-            normalized(
-                CFG.lox.title
-            )||
-
-            canonicalPath(
-                eventItem.url
-            )===
-            canonicalPath(
-                CFG.lox.url
-            )
+            normalized(eventItem.title)===normalized(CFG.lox.title)||
+            canonicalPath(eventItem.url)===canonicalPath(CFG.lox.url)
         ){
-
-            if(
-                !state.calendarLox||
-                eventItem.startTs<
-                    state.calendarLox.startTs
-            ){
-
-                state.calendarLox=
-                    eventItem;
+            if(!state.calendarLox||eventItem.startTs<state.calendarLox.startTs){
+                state.calendarLox=eventItem;
             }
-
         } else if(
-            eventItem.sourceType===
-            "page-meta"
+            eventItem.sourceType==="registry-target"||
+            eventItem.sourceType==="page-meta"
         ){
-
-            state.universalEvents.push(
-                eventItem
-            );
-
+            state.registryEvents.push(eventItem);
         } else {
-
-            state.pageEvents.push(
-                eventItem
-            );
+            state.pageEvents.push(eventItem);
         }
     });
 }
 
-
 /*
- * Multiple sources can each finish (or, for the universal
- * scan, report a single new discovery) within the same
- * handful of milliseconds. Coalescing those into one
- * render per animation frame avoids doing the same
- * innerHTML work several times over for no visible benefit.
+ * Coalesce near-simultaneous Calendar / registry updates into
+ * one paint. This changes no layout or rendering behavior.
  */
 var cfleRefreshQueued=false;
 var cfleRefreshWritePending=false;
 
 function scheduleRefresh(writeToStorage){
-
     cfleRefreshWritePending=
         cfleRefreshWritePending||
         writeToStorage;
@@ -2823,16 +2482,10 @@ function scheduleRefresh(writeToStorage){
 
     cfleRefreshQueued=true;
 
-    var raf=
-        window.requestAnimationFrame||
-        function(fn){
-            return window.setTimeout(fn,16);
-        };
-
-    raf(function(){
-
-        var write=
-            cfleRefreshWritePending;
+    (window.requestAnimationFrame||function(fn){
+        return window.setTimeout(fn,16);
+    })(function(){
+        var write=cfleRefreshWritePending;
 
         cfleRefreshQueued=false;
         cfleRefreshWritePending=false;
@@ -2841,245 +2494,162 @@ function scheduleRefresh(writeToStorage){
     });
 }
 
-
-function refreshCombinedEvents(
-    writeToStorage
-){
-
-    state.events=
-        addSpecialEvents(
-
-            mergeEventLists(
-                state.pageEvents,
-                state.universalEvents
-            )
-        );
-
+function refreshCombinedEvents(writeToStorage){
+    state.events=addSpecialEvents(
+        mergeEventLists(
+            state.pageEvents,
+            state.registryEvents
+        )
+    );
 
     state.initialLoadPending=
         !(
             state.pageDone&&
-            state.universalDone&&
+            state.registryDone&&
             state.calendarDone
         );
 
-
     renderAll();
 
-
     if(writeToStorage){
-
-        writeCache(
-            state.events
-        );
+        writeCache(state.events);
     }
 }
 
-
 function loadEvents(){
-
     var cached;
     var currentEvents=[];
-    var universalScanBuffer=[];
-
 
     var isHome=
         d.body&&
         /(^|\s)home(?:\s|$)/
-        .test(
-            d.body.className||""
-        );
+        .test(d.body.className||"");
 
-
+    /*
+     * The expensive work still runs only where event data is used.
+     */
     if(
         !isHome&&
         !qs("#cfle-events")&&
         !qs("#cfle-past-events")
     ){
-
         return;
     }
 
+    cached=readCache();
+    splitCachedEvents(cached);
 
-    cached=
-        readCache();
+    /*
+     * Keep the existing instant parser on the actual Upcoming page.
+     */
+    if(qs("#cfle-events")){
+        currentEvents=parseIndexEvents(d,true);
 
-
-    splitCachedEvents(
-        cached
-    );
-
-
-    if(
-        qs("#cfle-events")
-    ){
-
-        currentEvents=
-            parseIndexEvents(
-                d,
-                true
-            );
-
-
-        if(
-            currentEvents.length
-        ){
-
-            hideNativeSourceContainers(
-                currentEvents
-            );
-
-            state.pageEvents=
-                currentEvents;
+        if(currentEvents.length){
+            hideNativeSourceContainers(currentEvents);
+            state.pageEvents=currentEvents;
         }
     }
 
-
     /*
-     * Paint immediately from the last known combined result.
-     * With no cache, paint the normal in-layout loading state.
-     * This first paint stays synchronous (no rAF delay) so
-     * cached events show up the instant the page is ready.
+     * Cached events paint immediately.
      */
     refreshCombinedEvents(false);
 
+    /*
+     * Lox & Learn remains sourced only from ChabadOne Calendar.
+     */
+    requestCalendarLox(function(error,eventItem){
+        state.calendarDone=true;
+        state.calendarSuccess=!error;
 
-    requestCalendarLox(
-        function(
-            error,
-            eventItem
-        ){
-
-            state.calendarDone=
-                true;
-
-            state.calendarSuccess=
-                !error;
-
-
-            if(!error){
-
-                state.calendarLox=
-                    eventItem||
-                    null;
-            }
-
-
-            scheduleRefresh(
-
-                state.calendarSuccess||
-                state.pageSuccess||
-                state.universalSuccess
-            );
+        if(!error){
+            state.calendarLox=eventItem||null;
         }
-    );
 
-
-    requestSource(
-        function(
-            error,
-            html
-        ){
-
-            var fresh;
-
-
-            state.pageDone=
-                true;
-
-            state.pageSuccess=
-                !error;
-
-
-            if(
-                !error&&
-                html
-            ){
-
-                try{
-
-                    fresh=
-                        parseSourceHtml(
-                            html
-                        );
-
-                    state.pageEvents=
-                        fresh;
-
-                } catch(
-                    parseError
-                ){
-
-                    state.pageSuccess=
-                        false;
-                }
-            }
-
-
-            scheduleRefresh(
-
-                state.calendarSuccess||
-                state.pageSuccess||
-                state.universalSuccess
-            );
-        }
-    );
-
+        scheduleRefresh(
+            state.calendarSuccess||
+            state.pageSuccess||
+            state.registrySuccess
+        );
+    });
 
     /*
-     * Universal candidates stream back one page at a time.
-     * Each discovered event is merged into the live view the
-     * moment its page responds, instead of waiting for every
-     * candidate in the batch to finish first.
+     * ONE registry request: Upcoming at Chabad.
      */
-    requestUniversalPages(
+    requestSource(function(error,html){
+        var parsed;
+        var registryScanBuffer=[];
 
-        function(eventItem){
+        if(error||!html){
+            state.pageDone=true;
+            state.registryDone=true;
+            state.pageSuccess=false;
+            state.registrySuccess=false;
 
-            universalScanBuffer.push(
-                eventItem
-            );
-
-            state.universalEvents=
-                mergeEventLists(
-                    state.universalEvents,
-                    [eventItem]
-                );
-
-            scheduleRefresh(true);
-        },
-
-        function(error){
-
-            state.universalDone=
-                true;
-
-            state.universalSuccess=
-                !error;
-
-
-            if(!error){
-
-                /*
-                 * Snap to exactly what this scan confirmed,
-                 * so a page that no longer qualifies as an
-                 * event (or dropped out of navigation) is
-                 * correctly pruned rather than lingering
-                 * from a stale cached copy.
-                 */
-                state.universalEvents=
-                    universalScanBuffer;
-            }
-
-
-            scheduleRefresh(
-
-                state.calendarSuccess||
-                state.pageSuccess||
-                state.universalSuccess
-            );
+            scheduleRefresh(state.calendarSuccess);
+            return;
         }
-    );
+
+        try{
+            parsed=parseRegistrySourceHtml(html);
+
+            /*
+             * Existing child Web Documents are parsed directly from
+             * Upcoming at Chabad exactly as before.
+             */
+            state.pageEvents=parsed.events||[];
+            state.pageDone=true;
+            state.pageSuccess=true;
+
+            /*
+             * Cached linked-page events stay visible while the very
+             * small explicit registry target list refreshes.
+             */
+            scheduleRefresh(true);
+
+            requestRegistryTargets(
+                parsed.candidates||[],
+
+                function(eventItem){
+                    registryScanBuffer.push(eventItem);
+
+                    state.registryEvents=
+                        mergeEventLists(
+                            state.registryEvents,
+                            [eventItem]
+                        );
+
+                    scheduleRefresh(true);
+                },
+
+                function(targetError){
+                    state.registryDone=true;
+                    state.registrySuccess=!targetError;
+
+                    /*
+                     * If every target was reached successfully,
+                     * replace the old registry cache with exactly
+                     * what is registered/valid now. If a network
+                     * request failed, keep cached targets as fallback.
+                     */
+                    if(!targetError){
+                        state.registryEvents=registryScanBuffer;
+                    }
+
+                    scheduleRefresh(true);
+                }
+            );
+
+        } catch(parseError){
+            state.pageDone=true;
+            state.registryDone=true;
+            state.pageSuccess=false;
+            state.registrySuccess=false;
+
+            scheduleRefresh(state.calendarSuccess);
+        }
+    });
 }
 
 function start(){
