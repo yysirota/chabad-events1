@@ -2078,6 +2078,101 @@ function calendarButtonsHtml(eventItem){
     return google+other;
 }
 
+function eventDateDisplay(eventItem){
+
+    var fallback=eventItem.date||{};
+    var start=eventItem.startParts||{};
+    var end=eventItem.endParts||{};
+
+    var hasStart=
+        !!(
+            start.year&&
+            start.month&&
+            start.day
+        );
+
+    var hasEnd=
+        !!(
+            end.year&&
+            end.month&&
+            end.day
+        );
+
+    var sameDay;
+    var sameMonth;
+    var startMonth;
+    var endMonth;
+    var startWeekday;
+    var endWeekday;
+
+    if(!hasStart){
+
+        return {
+            month:(fallback.month||"").slice(0,3),
+            day:String(fallback.day||""),
+            weekday:(fallback.weekday||"").slice(0,3),
+            range:false,
+            crossMonth:false
+        };
+    }
+
+    if(!hasEnd){
+        end=start;
+    }
+
+    sameDay=
+        start.year===end.year&&
+        start.month===end.month&&
+        start.day===end.day;
+
+    sameMonth=
+        start.year===end.year&&
+        start.month===end.month;
+
+    startMonth=
+        monthName(start.month)
+        .slice(0,3);
+
+    endMonth=
+        monthName(end.month)
+        .slice(0,3);
+
+    startWeekday=
+        weekdayNameFromYmd(
+            start.year,
+            start.month,
+            start.day
+        ).slice(0,3);
+
+    endWeekday=
+        weekdayNameFromYmd(
+            end.year,
+            end.month,
+            end.day
+        ).slice(0,3);
+
+    return {
+
+        month:
+            sameMonth?
+                startMonth:
+                startMonth+"\u2013"+endMonth,
+
+        day:
+            sameDay?
+                String(start.day):
+                String(start.day)+"\u2013"+String(end.day),
+
+        weekday:
+            sameDay?
+                startWeekday:
+                startWeekday+"\u2013"+endWeekday,
+
+        range:!sameDay,
+        crossMonth:!sameMonth
+    };
+}
+    
 function cardHtml(eventItem,featured,past){
     var date=eventItem.date||{};
     var actions;
