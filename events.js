@@ -9,7 +9,7 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 var d=document;
 
 var CFG={
-    version:"9.5.1",
+    version:"9.5.2",
 buildId:"CFLE-REGISTRY-DATERANGE-2026-09-15-B",
 
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
@@ -315,6 +315,183 @@ function fitTitleElement(
     }
 }
 
+/*
+ * Homepage two-line title alignment.
+ *
+ * If a homepage title actually renders on two lines:
+ * - find the real width of the longer rendered line;
+ * - shrink only the title box to that width;
+ * - keep that box anchored at the normal left starting point;
+ * - center the shorter line inside it.
+ *
+ * One-line titles are not changed.
+ */
+function alignWrappedHomepageTitle(title){
+
+    var range;
+    var rects;
+    var lines=[];
+    var index;
+    var lineIndex;
+    var rect;
+    var line;
+    var longestWidth=0;
+    var availableWidth;
+    var targetWidth;
+
+    if(
+        !title||
+        !document.createRange
+    ){
+        return;
+    }
+
+
+    /*
+     * Measure the title exactly as the existing fitter
+     * has already rendered it.
+     */
+    range=document.createRange();
+
+    range.selectNodeContents(
+        title
+    );
+
+    rects=range.getClientRects();
+
+
+    /*
+     * Combine text rectangles that belong to the same
+     * visual line.
+     */
+    for(index=0;index<rects.length;index++){
+
+        rect=rects[index];
+
+        if(
+            !rect.width||
+            !rect.height
+        ){
+            continue;
+        }
+
+        line=null;
+
+        for(
+            lineIndex=0;
+            lineIndex<lines.length;
+            lineIndex++
+        ){
+
+            if(
+                Math.abs(
+                    lines[lineIndex].top-
+                    rect.top
+                )<3
+            ){
+
+                line=
+                    lines[lineIndex];
+
+                break;
+            }
+        }
+
+
+        if(!line){
+
+            lines.push({
+                top:rect.top,
+                left:rect.left,
+                right:rect.right
+            });
+
+        } else {
+
+            line.left=
+                Math.min(
+                    line.left,
+                    rect.left
+                );
+
+            line.right=
+                Math.max(
+                    line.right,
+                    rect.right
+                );
+        }
+    }
+
+
+    /*
+     * A one-line title stays EXACTLY as it is now.
+     */
+    if(lines.length<2){
+        return;
+    }
+
+
+    /*
+     * Find the width of whichever rendered line
+     * sticks out the farthest.
+     */
+    for(
+        lineIndex=0;
+        lineIndex<lines.length;
+        lineIndex++
+    ){
+
+        longestWidth=
+            Math.max(
+                longestWidth,
+                lines[lineIndex].right-
+                lines[lineIndex].left
+            );
+    }
+
+
+    if(!longestWidth){
+        return;
+    }
+
+
+    availableWidth=
+        title.parentNode?
+        title.parentNode.clientWidth:
+        title.clientWidth;
+
+
+    if(!availableWidth){
+        return;
+    }
+
+
+    /*
+     * Add 2px only as protection against fractional-pixel
+     * browser rounding changing the existing line break.
+     */
+    targetWidth=
+        Math.min(
+            availableWidth,
+            Math.ceil(longestWidth)+2
+        );
+
+
+    /*
+     * The parent is already aligned to the left beside
+     * the date box.
+     *
+     * Therefore:
+     * - the longest line begins at the normal single-line position;
+     * - the shorter line is centered relative to the longer line.
+     */
+    title.style.width=
+        targetWidth+"px";
+
+    title.style.textAlign=
+        "center";
+}
+    
 function fitAllEventTitles(root){
 
     var scope=
@@ -327,17 +504,48 @@ function fitAllEventTitles(root){
      * longer titles may use two.
      */
         qsa(
-        ".cfle-home-event-title",
-        scope
-    ).forEach(function(title){
+    ".cfle-home-event-title",
+    scope
+).forEach(function(title){
 
-        fitTitleElement(
-            title,
-            25,
-            16,
-            18
-        );
-    });
+    /*
+     * First remove ONLY the two values that our
+     * alignment helper may have added on a previous
+     * render/resize.
+     *
+     * This lets the existing title fitter calculate
+     * from the normal full width every time.
+     */
+    title.style.removeProperty(
+        "width"
+    );
+
+    title.style.removeProperty(
+        "text-align"
+    );
+
+
+    /*
+     * EXISTING title-fitting behavior.
+     * Do not change these numbers.
+     */
+    fitTitleElement(
+        title,
+        25,
+        16,
+        18
+    );
+
+
+    /*
+     * NEW:
+     * If it became two lines, tighten the title box
+     * around its longest line.
+     */
+    alignWrappedHomepageTitle(
+        title
+    );
+});
     /*
      * Main Upcoming at Chabad cards.
      */
