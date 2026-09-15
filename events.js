@@ -482,16 +482,18 @@ function fitDateRangeElement(element){
     }
 
     /*
-     * Remove a previous fitted value first.
-     * This lets the text grow again when the
-     * browser/window becomes wider.
+     * Remove the fitted value from the previous viewport
+     * before measuring again.
      */
     element.style.removeProperty(
         "font-size"
     );
 
-    element.style.whiteSpace=
-        "nowrap";
+    element.style.setProperty(
+        "white-space",
+        "nowrap",
+        "important"
+    );
 
     boxStyles=
         window.getComputedStyle(box);
@@ -517,8 +519,11 @@ function fitDateRangeElement(element){
     best=minimumSize;
 
     /*
-     * Binary search finds the largest font size
-     * that fits without clipping.
+     * Find the largest font size that fits.
+     *
+     * IMPORTANT:
+     * Use an inline !important value because the responsive
+     * stylesheet itself uses font-size:... !important.
      */
     while(low<=high){
 
@@ -527,8 +532,11 @@ function fitDateRangeElement(element){
                 (low+high)/2
             );
 
-        element.style.fontSize=
-            middle+"px";
+        element.style.setProperty(
+            "font-size",
+            middle+"px",
+            "important"
+        );
 
         if(
             element.scrollWidth<=
@@ -544,10 +552,12 @@ function fitDateRangeElement(element){
         }
     }
 
-    element.style.fontSize=
-        best+"px";
+    element.style.setProperty(
+        "font-size",
+        best+"px",
+        "important"
+    );
 }
-
 
 function fitAllEventDateRanges(root){
 
@@ -2304,17 +2314,17 @@ function eventDateDisplay(eventItem){
         month:
             sameMonth?
                 startMonth:
-                startMonth+"\u2013"+endMonth,
+                startMonth+"-"+endMonth,
 
         day:
             sameDay?
                 String(start.day):
-                String(start.day)+"\u2013"+String(end.day),
+                String(start.day)+"-"+String(end.day),
 
         weekday:
             sameDay?
                 startWeekday:
-                startWeekday+"\u2013"+endWeekday,
+                startWeekday+"-"+endWeekday,
 
         range:!sameDay,
         crossMonth:!sameMonth
