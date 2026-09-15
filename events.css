@@ -2765,22 +2765,17 @@ a.cfle-home-more:hover{
 }
 
 /* ============================================================
-   CFLE FEATURED EVENT VISUAL TREATMENT — v9.1.1
+   CFLE FEATURED EVENTS + SAFE WRAPPING + DATE RANGES
+   VERSION 9.5.1
 
-   HOMEPAGE:
-   - Featured rows receive a subtle champagne-gold tint.
-   - A standalone gold star appears at the far right.
-
-   UPCOMING PAGE:
-   - Featured cards receive the same subtle gold tint.
-   - The title is larger and begins lower on its own clear line.
-   - The Featured badge moves to the upper-right corner and
-     includes a gold star.
+   ONE authoritative Featured system.
+   Replaces the older conflicting Featured-position rules.
    ============================================================ */
 
-/* ------------------------------------------------------------
-   HOMEPAGE FEATURED ROWS
-   ------------------------------------------------------------ */
+
+/* ============================================================
+   HOMEPAGE FEATURED ROW
+   ============================================================ */
 
 .cfle-home-event--featured{
     grid-template-columns:60px minmax(0,1fr) 34px !important;
@@ -2788,10 +2783,6 @@ a.cfle-home-more:hover{
 
     border-color:rgba(229,169,0,.96) !important;
 
-    /*
-     * Warm pale-gold background matched to the earlier
-     * Spotlight Programs design supplied as the reference.
-     */
     background:
         linear-gradient(
             135deg,
@@ -2803,6 +2794,7 @@ a.cfle-home-more:hover{
     box-shadow:
         inset 0 0 0 1px rgba(229,169,0,.07) !important;
 }
+
 
 .cfle-home-featured-star{
     grid-area:featured-star !important;
@@ -2824,10 +2816,12 @@ a.cfle-home-more:hover{
         0 2px 7px rgba(177,119,8,.24) !important;
 
     transform:translateY(-1px) !important;
+
     transition:
         transform .20s ease,
         text-shadow .20s ease !important;
 }
+
 
 .cfle-home-event--featured:hover{
     border-color:#e5a900 !important;
@@ -2845,6 +2839,7 @@ a.cfle-home-more:hover{
         0 0 0 3px rgba(229,169,0,.06) !important;
 }
 
+
 .cfle-home-event--featured:hover
 .cfle-home-featured-star{
     transform:
@@ -2855,9 +2850,10 @@ a.cfle-home-more:hover{
         0 3px 10px rgba(177,119,8,.34) !important;
 }
 
-/* ------------------------------------------------------------
-   UPCOMING PAGE FEATURED CARDS
-   ------------------------------------------------------------ */
+
+/* ============================================================
+   UPCOMING PAGE — FEATURED APPEARANCE
+   ============================================================ */
 
 #cfle-events .cfle-card--featured{
     position:relative !important;
@@ -2865,10 +2861,6 @@ a.cfle-home-more:hover{
     border-width:2px !important;
     border-color:#dca31e !important;
 
-    /*
-     * Use the same warm pale-gold family as the homepage
-     * so Featured events have one consistent visual identity.
-     */
     background:
         linear-gradient(
             135deg,
@@ -2882,6 +2874,7 @@ a.cfle-home-more:hover{
         inset 0 0 0 1px rgba(229,169,0,.055) !important;
 }
 
+
 #cfle-events .cfle-card--featured:hover{
     border-color:#efb62d !important;
 
@@ -2891,267 +2884,23 @@ a.cfle-home-more:hover{
         inset 0 0 0 1px rgba(229,169,0,.07) !important;
 }
 
-/*
- * The badge occupies the previously empty upper-right corner.
- */
-#cfle-events
-.cfle-card--featured
-.cfle-tags{
-    position:absolute !important;
-    top:13px !important;
-    right:14px !important;
-    z-index:3 !important;
 
-    display:flex !important;
-    margin:0 !important;
-    padding:0 !important;
-}
-
-#cfle-events
-.cfle-card--featured
-.cfle-tag--featured{
-    display:inline-flex !important;
-    align-items:center !important;
-    justify-content:center !important;
-    gap:6px !important;
-
-    min-height:29px !important;
-    padding:6px 11px !important;
-
-    border:1px solid rgba(190,127,12,.78) !important;
-    border-radius:999px !important;
-
-    background:
-        linear-gradient(
-            135deg,
-            #f6cf5d,
-            #d99b1d
-        ) !important;
-
-    color:#fff !important;
-    font-size:11px !important;
-    line-height:1 !important;
-    font-weight:900 !important;
-    letter-spacing:.045em !important;
-
-    box-shadow:
-        0 5px 12px rgba(190,127,12,.18) !important;
-}
-
-#cfle-events
-.cfle-featured-badge-star{
-    display:inline-block !important;
-
-    color:#fff !important;
-    font-size:13px !important;
-    line-height:1 !important;
-
-    transform:translateY(-.25px) !important;
-}
-
-/*
- * Move the title lower so it sits beneath the top-right badge,
- * while retaining the complete width of the information column.
- */
-#cfle-events
-.cfle-card--featured
-.cfle-card-body{
-    align-self:start !important;
-    padding-top:31px !important;
-}
-
-#cfle-events
-.cfle-card--featured
-.cfle-event-title{
-    width:100% !important;
-    margin:0 0 11px !important;
-}
-
-#cfle-events
-.cfle-card--featured
-.cfle-event-title,
-#cfle-events
-.cfle-card--featured
-.cfle-event-title a{
-    display:block !important;
-
-    color:#211b15 !important;
-
-    font-size:31px !important;
-    line-height:1.04 !important;
-    font-weight:900 !important;
-    letter-spacing:-.025em !important;
-
-    text-align:left !important;
-    text-decoration:none !important;
-}
-
-/* ------------------------------------------------------------
-   MOBILE RESPONSIVE REFINEMENT
-   ------------------------------------------------------------ */
-
-@media (max-width:700px){
-
-    .cfle-home-event--featured{
-        grid-template-columns:60px minmax(0,1fr) 27px !important;
-        grid-template-areas:"date content featured-star" !important;
-    }
-
-    .cfle-home-featured-star{
-        width:25px !important;
-        height:25px !important;
-        font-size:24px !important;
-    }
-
-    #cfle-events
-    .cfle-card--featured
-    .cfle-tags{
-        top:10px !important;
-        right:11px !important;
-    }
-
-    #cfle-events
-    .cfle-card--featured
-    .cfle-tag--featured{
-        min-height:26px !important;
-        padding:5px 9px !important;
-        gap:5px !important;
-        font-size:10px !important;
-    }
-
-    #cfle-events
-    .cfle-card--featured
-    .cfle-card-body{
-        padding-top:32px !important;
-    }
-
-    #cfle-events
-    .cfle-card--featured
-    .cfle-event-title,
-    #cfle-events
-    .cfle-card--featured
-    .cfle-event-title a,
-    #cfle-events
-    .cfle-card--featured
-    .cfle-event-title
-    a.cfle-mobile-short-title{
-        font-size:26px !important;
-        line-height:1.03 !important;
-        text-align:left !important;
-    }
-}
 /* ============================================================
-   CFLE FEATURED LARGE-CARD BADGE PLACEMENT — v9.1.3
+   FEATURED CONTENT POSITION
 
-   DESKTOP UPCOMING PAGE ONLY
+   The date box and Featured pill now begin at the SAME top edge.
 
-   - Featured event stays full width.
-   - Existing Featured pill sits directly above event title.
-   - Calendar buttons remain untouched on the right.
-   - Existing card, date box, title and button sizes unchanged.
-   - Mobile keeps its existing upper-right Featured placement.
+   This selector is intentionally very specific so none of the
+   older generic card/mobile positioning can push it downward.
    ============================================================ */
 
-@media (min-width:701px){
-
-    /*
-     * The old Featured design positioned this badge absolutely
-     * in the upper-right corner of the entire card.
-     *
-     * On desktop we now return it to normal document flow.
-     */
-    #cfle-events
-    .cfle-card--featured
-    .cfle-tags{
-        position:static !important;
-
-        top:auto !important;
-        right:auto !important;
-        bottom:auto !important;
-        left:auto !important;
-
-        z-index:auto !important;
-
-        display:flex !important;
-        align-items:center !important;
-        justify-content:flex-start !important;
-
-        width:auto !important;
-
-        margin:0 0 7px !important;
-        padding:0 !important;
-    }
-
-    /*
-     * Remove the old empty 31px space that had been created
-     * underneath the floating upper-right Featured badge.
-     *
-     * Center the entire information group vertically beside
-     * the large date panel.
-     */
-    #cfle-events
-    .cfle-card--featured
-    .cfle-card-body{
-        align-self:center !important;
-
-        padding-top:0 !important;
-
-        text-align:left !important;
-    }
-
-    /*
-     * Title now naturally follows immediately beneath the
-     * Featured pill.
-     */
-    #cfle-events
-    .cfle-card--featured
-    .cfle-event-title{
-        width:100% !important;
-
-        margin:0 0 11px !important;
-    }
-
-    /*
-     * Preserve left alignment for the title.
-     */
-    #cfle-events
-    .cfle-card--featured
-    .cfle-event-title,
-    #cfle-events
-    .cfle-card--featured
-    .cfle-event-title a{
-        text-align:left !important;
-    }
-}
-}
- 
-/* ============================================================
-   CFLE FEATURED ALIGNMENT + SAFE TEXT WRAPPING + DATE RANGES
-   VERSION 9.5.0
-
-   - Featured badge begins at the same vertical top as date box
-   - Featured title/location naturally follow beneath it
-   - Applies on desktop, split desktop, tablet and mobile
-   - Normal non-featured cards remain unchanged
-   - Mobile Featured pill moves from upper-right corner into
-     normal flow directly above the event title
-   - Locations may wrap naturally instead of clipping
-   - Multi-day / multi-month date text never escapes date box
-   ============================================================ */
-
-
-/* ------------------------------------------------------------
-   FEATURED INFORMATION COLUMN
-   Top-align it with the date box at EVERY viewport width.
-   ------------------------------------------------------------ */
-
 #cfle-events
-.cfle-card--featured
-.cfle-card-body,
-#cfle-events
-.cfle-card--featured
-.cfle-body{
+.cfle-grid.cfle-grid--featured
+> .cfle-card.cfle-card--featured
+> .cfle-card-body{
+
     align-self:start !important;
+    justify-self:stretch !important;
 
     display:flex !important;
     flex-direction:column !important;
@@ -3162,28 +2911,33 @@ a.cfle-home-more:hover{
     width:100% !important;
     min-width:0 !important;
 
+    margin-top:0 !important;
     padding-top:0 !important;
+
+    transform:none !important;
 
     text-align:left !important;
 }
 
 
-/* ------------------------------------------------------------
+/* ============================================================
    FEATURED BADGE
 
-   Remove the old absolute upper-right placement.
+   It is part of normal content flow instead of floating in
+   the upper-right corner.
 
-   The badge now lives naturally at the top-left of the
-   information column, directly above the event title.
-
-   Since both .cfle-date and .cfle-card-body begin at the top
-   of the same grid row, the top edge of this pill lines up
-   naturally with the top of the date box.
-   ------------------------------------------------------------ */
+   Therefore:
+   date top = Featured pill top
+   then title
+   then time/location
+   ============================================================ */
 
 #cfle-events
-.cfle-card--featured
-.cfle-tags{
+.cfle-grid.cfle-grid--featured
+> .cfle-card.cfle-card--featured
+> .cfle-card-body
+> .cfle-tags{
+
     position:static !important;
 
     top:auto !important;
@@ -3204,14 +2958,72 @@ a.cfle-home-more:hover{
 
     margin:0 0 7px 0 !important;
     padding:0 !important;
+
+    transform:none !important;
 }
 
 
-/* Keep Featured title directly beneath the badge. */
-
 #cfle-events
 .cfle-card--featured
-.cfle-event-title{
+.cfle-tag--featured{
+
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+
+    gap:6px !important;
+
+    min-height:29px !important;
+    padding:6px 11px !important;
+
+    border:1px solid rgba(190,127,12,.78) !important;
+    border-radius:999px !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f6cf5d,
+            #d99b1d
+        ) !important;
+
+    color:#fff !important;
+
+    font-size:11px !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    letter-spacing:.045em !important;
+
+    box-shadow:
+        0 5px 12px rgba(190,127,12,.18) !important;
+}
+
+
+#cfle-events
+.cfle-featured-badge-star{
+    display:inline-block !important;
+
+    color:#fff !important;
+
+    font-size:13px !important;
+    line-height:1 !important;
+
+    transform:translateY(-.25px) !important;
+}
+
+
+/* ============================================================
+   FEATURED TITLE
+
+   Do NOT introduce any vertical offset.
+   It simply follows the Featured pill.
+   ============================================================ */
+
+#cfle-events
+.cfle-grid.cfle-grid--featured
+> .cfle-card.cfle-card--featured
+> .cfle-card-body
+> .cfle-event-title{
+
     width:100% !important;
     max-width:100% !important;
 
@@ -3220,112 +3032,293 @@ a.cfle-home-more:hover{
     text-align:left !important;
 }
 
+
 #cfle-events
-.cfle-card--featured
-.cfle-event-title a{
+.cfle-grid.cfle-grid--featured
+> .cfle-card.cfle-card--featured
+> .cfle-card-body
+> .cfle-event-title a{
+
     max-width:100% !important;
+
     text-align:left !important;
 }
 
 
-/* ------------------------------------------------------------
+/* Keep the existing Featured title treatment. */
+
+#cfle-events
+.cfle-card--featured
+.cfle-event-title,
+#cfle-events
+.cfle-card--featured
+.cfle-event-title a{
+
+    display:block !important;
+
+    color:#211b15 !important;
+
+    font-size:31px !important;
+    line-height:1.04 !important;
+    font-weight:900 !important;
+    letter-spacing:-.025em !important;
+
+    text-decoration:none !important;
+}
+
+
+/* ============================================================
    LOCATION WRAPPING
 
-   Older mobile CSS intentionally forced locations onto one line.
-   Override that.
+   Location is allowed to move naturally onto another line.
 
-   Words themselves remain whole. The browser wraps at spaces,
-   so "(Palisadium)" can move cleanly onto the next line.
-   ------------------------------------------------------------ */
+   Example:
+   Riverview Ballroom
+   (Palisadium)
 
-#cfle-events .cfle-location{
+   No clipping and no forced one-line behavior.
+   ============================================================ */
+
+#cfle-events
+.cfle-card
+.cfle-meta
+.cfle-location{
+
     min-width:0 !important;
     max-width:100% !important;
 
     white-space:normal !important;
+
+    overflow:visible !important;
 
     align-items:flex-start !important;
 }
 
-#cfle-events .cfle-location > span{
-    display:inline !important;
+
+#cfle-events
+.cfle-card
+.cfle-meta
+.cfle-location
+> span{
+
+    display:block !important;
+
+    flex:1 1 auto !important;
 
     min-width:0 !important;
     max-width:100% !important;
 
     white-space:normal !important;
 
+    overflow:visible !important;
+
     word-break:normal !important;
-    overflow-wrap:normal !important;
+    overflow-wrap:break-word !important;
     hyphens:none !important;
 }
 
 
-/* Never allow the complete metadata row to force the card wider. */
+/* ============================================================
+   DATE RANGES
 
-#cfle-events .cfle-meta,
-#cfle-events .cfle-meta-item{
-    min-width:0 !important;
-    max-width:100% !important;
-}
+   JS supplies:
+   SEP
+   20–21
+   SUN–MON
 
+   or:
+   SEP–OCT
+   25–2
+   FRI–FRI
 
-/* ------------------------------------------------------------
-   MULTI-DAY DATE BOXES
-   JS dynamically shrinks these only when required.
-   ------------------------------------------------------------ */
+   JS then shrinks only whichever line needs shrinking.
+   ============================================================ */
 
 #cfle-events
 .cfle-date--range
 .cfle-date-day,
 .cfle-home-date-box--range
 .cfle-home-date-day{
+
     white-space:nowrap !important;
     letter-spacing:-.045em !important;
 }
 
-
-/* Date ranges such as SUN–MON. */
 
 #cfle-events
 .cfle-date--range
 .cfle-date-weekday,
 .cfle-home-date-box--range
 .cfle-home-date-weekday{
+
     white-space:nowrap !important;
     letter-spacing:.025em !important;
 }
 
-
-/* Cross-month ranges such as SEP–OCT. */
 
 #cfle-events
 .cfle-date--cross-month
 .cfle-date-month,
 .cfle-home-date-box--cross-month
 .cfle-home-date-month{
+
     white-space:nowrap !important;
     letter-spacing:.02em !important;
 }
 
 
-/* Homepage does not live inside #cfle-events, so repeat only
-   the safe range rules there. */
+/* Homepage is outside #cfle-events. */
 
 .cfle-home-date-box--range
 .cfle-home-date-day{
+
     white-space:nowrap !important;
     letter-spacing:-.045em !important;
 }
 
+
 .cfle-home-date-box--range
 .cfle-home-date-weekday{
+
     white-space:nowrap !important;
     letter-spacing:.025em !important;
 }
 
+
 .cfle-home-date-box--cross-month
 .cfle-home-date-month{
+
     white-space:nowrap !important;
     letter-spacing:.02em !important;
+}
+
+
+/* ============================================================
+   MOBILE FEATURED CARD
+   ============================================================ */
+
+@media (max-width:700px){
+
+    .cfle-home-event--featured{
+        grid-template-columns:
+            60px
+            minmax(0,1fr)
+            27px !important;
+
+        grid-template-areas:
+            "date content featured-star" !important;
+    }
+
+
+    .cfle-home-featured-star{
+        width:25px !important;
+        height:25px !important;
+        font-size:24px !important;
+    }
+
+
+    /*
+     * Re-state the top alignment inside mobile with very high
+     * specificity. Nothing is allowed to add padding above it.
+     */
+    #cfle-events
+    .cfle-grid.cfle-grid--featured
+    > .cfle-card.cfle-card--featured
+    > .cfle-card-body{
+
+        align-self:start !important;
+
+        justify-content:flex-start !important;
+        align-items:flex-start !important;
+
+        margin-top:0 !important;
+        padding-top:0 !important;
+
+        transform:none !important;
+    }
+
+
+    #cfle-events
+    .cfle-grid.cfle-grid--featured
+    > .cfle-card.cfle-card--featured
+    > .cfle-card-body
+    > .cfle-tags{
+
+        position:static !important;
+
+        top:auto !important;
+        right:auto !important;
+        left:auto !important;
+
+        align-self:flex-start !important;
+
+        margin:0 0 6px 0 !important;
+
+        transform:none !important;
+    }
+
+
+    #cfle-events
+    .cfle-card--featured
+    .cfle-tag--featured{
+
+        min-height:26px !important;
+
+        padding:5px 9px !important;
+
+        gap:5px !important;
+
+        font-size:10px !important;
+    }
+
+
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title,
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title a,
+    #cfle-events
+    .cfle-card--featured
+    .cfle-event-title
+    a.cfle-mobile-short-title{
+
+        font-size:26px !important;
+        line-height:1.03 !important;
+
+        text-align:left !important;
+    }
+
+
+    /*
+     * Give a mobile location its complete available content width.
+     * It may wrap at normal spaces.
+     */
+    #cfle-events
+    .cfle-card
+    .cfle-meta
+    .cfle-location{
+
+        width:100% !important;
+
+        min-width:0 !important;
+        max-width:100% !important;
+
+        white-space:normal !important;
+    }
+
+
+    #cfle-events
+    .cfle-card
+    .cfle-meta
+    .cfle-location
+    > span{
+
+        width:auto !important;
+
+        min-width:0 !important;
+        max-width:100% !important;
+
+        white-space:normal !important;
+    }
 }
