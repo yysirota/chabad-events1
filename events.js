@@ -451,16 +451,164 @@ function fitAllEventTitles(root){
     });
 }
 
-function scheduleEventTitleFit(root){
+function fitDateRangeElement(element){
+
+    var box;
+    var boxStyles;
+    var elementStyles;
+    var availableWidth;
+    var maximumSize;
+    var minimumSize=8;
+    var low;
+    var high;
+    var middle;
+    var best;
+
+    if(!element){
+        return;
+    }
+
+    box=
+        closestBySelector(
+            element,
+            ".cfle-date,.cfle-home-date-box"
+        );
+
+    if(
+        !box||
+        !box.clientWidth
+    ){
+        return;
+    }
+
+    /*
+     * Remove a previous fitted value first.
+     * This lets the text grow again when the
+     * browser/window becomes wider.
+     */
+    element.style.removeProperty(
+        "font-size"
+    );
+
+    element.style.whiteSpace=
+        "nowrap";
+
+    boxStyles=
+        window.getComputedStyle(box);
+
+    elementStyles=
+        window.getComputedStyle(element);
+
+    availableWidth=
+        box.clientWidth-
+        (parseFloat(boxStyles.paddingLeft)||0)-
+        (parseFloat(boxStyles.paddingRight)||0)-
+        4;
+
+    maximumSize=
+        Math.floor(
+            parseFloat(
+                elementStyles.fontSize
+            )||12
+        );
+
+    low=minimumSize;
+    high=maximumSize;
+    best=minimumSize;
+
+    /*
+     * Binary search finds the largest font size
+     * that fits without clipping.
+     */
+    while(low<=high){
+
+        middle=
+            Math.floor(
+                (low+high)/2
+            );
+
+        element.style.fontSize=
+            middle+"px";
+
+        if(
+            element.scrollWidth<=
+            availableWidth+1
+        ){
+
+            best=middle;
+            low=middle+1;
+
+        } else {
+
+            high=middle-1;
+        }
+    }
+
+    element.style.fontSize=
+        best+"px";
+}
+
+
+function fitAllEventDateRanges(root){
+
+    var scope=
+        root||
+        document;
+
+    qsa(
+        ".cfle-date-range-fit",
+        scope
+    ).forEach(function(element){
+
+        fitDateRangeElement(
+            element
+        );
+    });
+}
+
+
+function scheduleEventDateRangeFit(root){
 
     var runFit=function(){
 
-        fitAllEventTitles(
+        fitAllEventDateRanges(
             root||
             document
         );
     };
 
+    if(window.requestAnimationFrame){
+
+        window.requestAnimationFrame(
+            runFit
+        );
+
+    } else {
+
+        window.setTimeout(
+            runFit,
+            0
+        );
+    }
+}
+    
+function scheduleEventTitleFit(root){
+
+var runFit=function(){
+
+    var scope=
+        root||
+        document;
+
+    fitAllEventTitles(
+        scope
+    );
+
+    fitAllEventDateRanges(
+        scope
+    );
+};
+    
     if(window.requestAnimationFrame){
 
         window.requestAnimationFrame(
@@ -2174,36 +2322,96 @@ function eventDateDisplay(eventItem){
 }
     
 function cardHtml(eventItem,featured,past){
-    var date=eventItem.date||{};
+
+    var date=eventDateDisplay(eventItem);
     var actions;
-    var className="cfle-card"+(featured?" cfle-card--featured":"");
+
+    var className=
+        "cfle-card"+
+        (featured?" cfle-card--featured":"");
+
+    var dateClass=
+        "cfle-date"+
+        (date.range?" cfle-date--range":"")+
+        (date.crossMonth?" cfle-date--cross-month":"");
+
+    var monthClass=
+        "cfle-date-month"+
+        (date.crossMonth?" cfle-date-range-fit":"");
+
+    var dayClass=
+        "cfle-date-day"+
+        (date.range?" cfle-date-range-fit":"");
+
+    var weekdayClass=
+        "cfle-date-weekday"+
+        (date.range?" cfle-date-range-fit":"");
 
     if(past){
-        actions='<div class="cfle-event-actions cfle-event-actions--past">'+
-            '<a class="cfle-action cfle-view-action" href="'+escapeHtml(eventItem.url)+'">View Event</a>'+
+
+        actions=
+            '<div class="cfle-event-actions cfle-event-actions--past">'+
+                '<a class="cfle-action cfle-view-action" href="'+
+                    escapeHtml(eventItem.url)+
+                '">View Event</a>'+
             '</div>';
+
     } else {
-        actions='<div class="cfle-event-actions">'+
-            calendarButtonsHtml(eventItem)+
-            '<a class="cfle-action cfle-view-action" href="'+escapeHtml(eventItem.url)+'">View Details</a>'+
+
+        actions=
+            '<div class="cfle-event-actions">'+
+                calendarButtonsHtml(eventItem)+
+                '<a class="cfle-action cfle-view-action" href="'+
+                    escapeHtml(eventItem.url)+
+                '">View Details</a>'+
             '</div>';
     }
 
-    return '<article class="'+className+'">'+
-    '<div class="cfle-date">'+
-        '<span class="cfle-date-month">'+escapeHtml((date.month||"").slice(0,3))+'</span>'+
-        '<span class="cfle-date-day">'+escapeHtml(date.day||"")+'</span>'+
-        '<span class="cfle-date-weekday">'+escapeHtml((date.weekday||"").slice(0,3))+'</span>'+
-    '</div>'+
-    '<div class="cfle-card-body">'+
-        (featured?'<div class="cfle-tags">'+featuredTag()+'</div>':'')+
-        '<h3 class="cfle-event-title"><a href="'+escapeHtml(eventItem.url)+'">'+escapeHtml(eventItem.title)+'</a></h3>'+
-        renderMeta(eventItem)+
-    '</div>'+
-    actions+
-'</article>';
-}
+    return (
+        '<article class="'+className+'">'+
 
+            '<div class="'+dateClass+'">'+
+
+                '<span class="'+monthClass+'">'+
+                    escapeHtml(date.month)+
+                '</span>'+
+
+                '<span class="'+dayClass+'">'+
+                    escapeHtml(date.day)+
+                '</span>'+
+
+                '<span class="'+weekdayClass+'">'+
+                    escapeHtml(date.weekday)+
+                '</span>'+
+
+            '</div>'+
+
+            '<div class="cfle-card-body">'+
+
+                (
+                    featured?
+                        '<div class="cfle-tags">'+
+                            featuredTag()+
+                        '</div>':
+                        ''
+                )+
+
+                '<h3 class="cfle-event-title">'+
+                    '<a href="'+escapeHtml(eventItem.url)+'">'+
+                        escapeHtml(eventItem.title)+
+                    '</a>'+
+                '</h3>'+
+
+                renderMeta(eventItem)+
+
+            '</div>'+
+
+            actions+
+
+        '</article>'
+    );
+}
+    
 function findEventById(id){
     var index;
     for(index=0;index<state.events.length;index++){
@@ -2397,28 +2605,45 @@ function renderHomepage(){
 
     rows=events.map(function(eventItem){
 
-    var date=eventItem.date||{};
+var date=eventDateDisplay(eventItem);
 
+var homeDateClass=
+    "cfle-home-date-box"+
+    (date.range?" cfle-home-date-box--range":"")+
+    (date.crossMonth?" cfle-home-date-box--cross-month":"");
+
+var homeMonthClass=
+    "cfle-home-date-month"+
+    (date.crossMonth?" cfle-date-range-fit":"");
+
+var homeDayClass=
+    "cfle-home-date-day"+
+    (date.range?" cfle-date-range-fit":"");
+
+var homeWeekdayClass=
+    "cfle-home-date-weekday"+
+    (date.range?" cfle-date-range-fit":"");
+        
     return '<a class="cfle-home-event'+
         (eventItem.featured?' cfle-home-event--featured':'')+
         '" href="'+escapeHtml(eventItem.url)+'">'+
 
-        '<span class="cfle-home-date-box">'+
-            '<span class="cfle-home-date-month">'+
-                escapeHtml(
-                    (date.month||"").slice(0,3)
-                )+
-            '</span>'+
-            '<span class="cfle-home-date-day">'+
-                escapeHtml(date.day||"")+
-            '</span>'+
-            '<span class="cfle-home-date-weekday">'+
-                escapeHtml(
-                    (date.weekday||"").slice(0,3)
-                )+
-            '</span>'+
-        '</span>'+
+'<span class="'+homeDateClass+'">'+
 
+    '<span class="'+homeMonthClass+'">'+
+        escapeHtml(date.month)+
+    '</span>'+
+
+    '<span class="'+homeDayClass+'">'+
+        escapeHtml(date.day)+
+    '</span>'+
+
+    '<span class="'+homeWeekdayClass+'">'+
+        escapeHtml(date.weekday)+
+    '</span>'+
+
+'</span>'+
+        
         '<span class="cfle-home-event-content">'+
             '<strong class="cfle-home-event-title">'+
                 escapeHtml(eventItem.title)+
