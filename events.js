@@ -9,8 +9,8 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 var d=document;
 
 var CFG={
-    version:"9.4.0",
-    buildId:"CFLE-REGISTRY-2026-09-11-A",
+    version:"9.5.1",
+buildId:"CFLE-REGISTRY-DATERANGE-2026-09-15-B",
 
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
     upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
@@ -2740,7 +2740,9 @@ function renderPast(){
         '<div class="cfle-past-intro">Recently concluded programs</div><div class="cfle-grid cfle-grid--past">'+
         events.map(function(eventItem){ return cardHtml(eventItem,false,true); }).join("")+
         '</div>':
-        '<div class="cfle-empty"><strong>No new archived events yet.</strong><span>Your existing historical gallery remains below.</span></div>';
+                '<div class="cfle-empty"><strong>No new archived events yet.</strong><span>Your existing historical gallery remains below.</span></div>';
+
+    scheduleEventDateRangeFit(root);
 }
 
 function hideNativeSourceContainers(events){
