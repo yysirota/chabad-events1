@@ -3125,3 +3125,207 @@ a.cfle-home-more:hover{
 }
 }
  
+/* ============================================================
+   CFLE FEATURED ALIGNMENT + SAFE TEXT WRAPPING + DATE RANGES
+   VERSION 9.5.0
+
+   - Featured badge begins at the same vertical top as date box
+   - Featured title/location naturally follow beneath it
+   - Applies on desktop, split desktop, tablet and mobile
+   - Normal non-featured cards remain unchanged
+   - Mobile Featured pill moves from upper-right corner into
+     normal flow directly above the event title
+   - Locations may wrap naturally instead of clipping
+   - Multi-day / multi-month date text never escapes date box
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   FEATURED INFORMATION COLUMN
+   Top-align it with the date box at EVERY viewport width.
+   ------------------------------------------------------------ */
+
+#cfle-events
+.cfle-card--featured
+.cfle-card-body,
+#cfle-events
+.cfle-card--featured
+.cfle-body{
+    align-self:start !important;
+
+    display:flex !important;
+    flex-direction:column !important;
+
+    align-items:flex-start !important;
+    justify-content:flex-start !important;
+
+    width:100% !important;
+    min-width:0 !important;
+
+    padding-top:0 !important;
+
+    text-align:left !important;
+}
+
+
+/* ------------------------------------------------------------
+   FEATURED BADGE
+
+   Remove the old absolute upper-right placement.
+
+   The badge now lives naturally at the top-left of the
+   information column, directly above the event title.
+
+   Since both .cfle-date and .cfle-card-body begin at the top
+   of the same grid row, the top edge of this pill lines up
+   naturally with the top of the date box.
+   ------------------------------------------------------------ */
+
+#cfle-events
+.cfle-card--featured
+.cfle-tags{
+    position:static !important;
+
+    top:auto !important;
+    right:auto !important;
+    bottom:auto !important;
+    left:auto !important;
+
+    z-index:auto !important;
+
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+
+    align-self:flex-start !important;
+
+    width:auto !important;
+    max-width:100% !important;
+
+    margin:0 0 7px 0 !important;
+    padding:0 !important;
+}
+
+
+/* Keep Featured title directly beneath the badge. */
+
+#cfle-events
+.cfle-card--featured
+.cfle-event-title{
+    width:100% !important;
+    max-width:100% !important;
+
+    margin-top:0 !important;
+
+    text-align:left !important;
+}
+
+#cfle-events
+.cfle-card--featured
+.cfle-event-title a{
+    max-width:100% !important;
+    text-align:left !important;
+}
+
+
+/* ------------------------------------------------------------
+   LOCATION WRAPPING
+
+   Older mobile CSS intentionally forced locations onto one line.
+   Override that.
+
+   Words themselves remain whole. The browser wraps at spaces,
+   so "(Palisadium)" can move cleanly onto the next line.
+   ------------------------------------------------------------ */
+
+#cfle-events .cfle-location{
+    min-width:0 !important;
+    max-width:100% !important;
+
+    white-space:normal !important;
+
+    align-items:flex-start !important;
+}
+
+#cfle-events .cfle-location > span{
+    display:inline !important;
+
+    min-width:0 !important;
+    max-width:100% !important;
+
+    white-space:normal !important;
+
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+    hyphens:none !important;
+}
+
+
+/* Never allow the complete metadata row to force the card wider. */
+
+#cfle-events .cfle-meta,
+#cfle-events .cfle-meta-item{
+    min-width:0 !important;
+    max-width:100% !important;
+}
+
+
+/* ------------------------------------------------------------
+   MULTI-DAY DATE BOXES
+   JS dynamically shrinks these only when required.
+   ------------------------------------------------------------ */
+
+#cfle-events
+.cfle-date--range
+.cfle-date-day,
+.cfle-home-date-box--range
+.cfle-home-date-day{
+    white-space:nowrap !important;
+    letter-spacing:-.045em !important;
+}
+
+
+/* Date ranges such as SUN–MON. */
+
+#cfle-events
+.cfle-date--range
+.cfle-date-weekday,
+.cfle-home-date-box--range
+.cfle-home-date-weekday{
+    white-space:nowrap !important;
+    letter-spacing:.025em !important;
+}
+
+
+/* Cross-month ranges such as SEP–OCT. */
+
+#cfle-events
+.cfle-date--cross-month
+.cfle-date-month,
+.cfle-home-date-box--cross-month
+.cfle-home-date-month{
+    white-space:nowrap !important;
+    letter-spacing:.02em !important;
+}
+
+
+/* Homepage does not live inside #cfle-events, so repeat only
+   the safe range rules there. */
+
+.cfle-home-date-box--range
+.cfle-home-date-day{
+    white-space:nowrap !important;
+    letter-spacing:-.045em !important;
+}
+
+.cfle-home-date-box--range
+.cfle-home-date-weekday{
+    white-space:nowrap !important;
+    letter-spacing:.025em !important;
+}
+
+.cfle-home-date-box--cross-month
+.cfle-home-date-month{
+    white-space:nowrap !important;
+    letter-spacing:.02em !important;
+}
