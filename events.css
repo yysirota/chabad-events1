@@ -2899,26 +2899,32 @@ a.cfle-home-more:hover{
 > .cfle-card.cfle-card--featured
 > .cfle-card-body{
 
-    align-self:start !important;
+    position:relative !important;
+
+    /*
+     * Fill the same vertical row as the date box.
+     * The event title/details are then vertically centered
+     * just like a normal non-featured event.
+     */
+    align-self:stretch !important;
     justify-self:stretch !important;
 
     display:flex !important;
     flex-direction:column !important;
 
     align-items:flex-start !important;
-    justify-content:flex-start !important;
+    justify-content:center !important;
 
     width:100% !important;
     min-width:0 !important;
 
-    margin-top:0 !important;
+    margin:0 !important;
     padding-top:0 !important;
 
     transform:none !important;
 
     text-align:left !important;
 }
-
 
 /* ============================================================
    FEATURED BADGE
@@ -2938,30 +2944,32 @@ a.cfle-home-more:hover{
 > .cfle-card-body
 > .cfle-tags{
 
-    position:static !important;
+    position:absolute !important;
 
-    top:auto !important;
+    /*
+     * Featured pill is independent of the title/details.
+     * 3px means just slightly below the top of the date box.
+     */
+    top:3px !important;
+
+    left:0 !important;
     right:auto !important;
     bottom:auto !important;
-    left:auto !important;
 
-    z-index:auto !important;
+    z-index:3 !important;
 
     display:flex !important;
     align-items:center !important;
     justify-content:flex-start !important;
 
-    align-self:flex-start !important;
-
     width:auto !important;
     max-width:100% !important;
 
-    margin:0 0 7px 0 !important;
+    margin:0 !important;
     padding:0 !important;
 
     transform:none !important;
 }
-
 
 #cfle-events
 .cfle-card--featured
@@ -3221,41 +3229,70 @@ a.cfle-home-more:hover{
      * Re-state the top alignment inside mobile with very high
      * specificity. Nothing is allowed to add padding above it.
      */
+
+#cfle-events
+.cfle-grid.cfle-grid--featured
+> .cfle-card.cfle-card--featured
+> .cfle-card-body{
+
+    position:relative !important;
+
+    align-self:stretch !important;
+
+    display:flex !important;
+    flex-direction:column !important;
+
+    align-items:flex-start !important;
+    justify-content:center !important;
+
+    width:100% !important;
+    min-width:0 !important;
+
+    margin:0 !important;
+    padding-top:0 !important;
+
+    transform:none !important;
+
+    text-align:left !important;
+}
+   
     #cfle-events
-    .cfle-grid.cfle-grid--featured
-    > .cfle-card.cfle-card--featured
-    > .cfle-card-body{
+.cfle-grid.cfle-grid--featured
+> .cfle-card.cfle-card--featured
+> .cfle-card-body
+> .cfle-tags{
 
-        align-self:start !important;
+    position:absolute !important;
 
-        justify-content:flex-start !important;
-        align-items:flex-start !important;
+    /*
+     * The pill sits just slightly below
+     * the top border of the date box.
+     *
+     * Change ONLY this number later if desired:
+     * 1px = almost exact alignment
+     * 3px = my recommendation
+     * 5px = slightly lower
+     */
+    top:3px !important;
 
-        margin-top:0 !important;
-        padding-top:0 !important;
+    left:0 !important;
+    right:auto !important;
+    bottom:auto !important;
 
-        transform:none !important;
-    }
+    z-index:3 !important;
 
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
 
-    #cfle-events
-    .cfle-grid.cfle-grid--featured
-    > .cfle-card.cfle-card--featured
-    > .cfle-card-body
-    > .cfle-tags{
+    width:auto !important;
+    max-width:100% !important;
 
-        position:static !important;
+    margin:0 !important;
+    padding:0 !important;
 
-        top:auto !important;
-        right:auto !important;
-        left:auto !important;
-
-        align-self:flex-start !important;
-
-        margin:0 0 6px 0 !important;
-
-        transform:none !important;
-    }
+    transform:none !important;
+}
 
 
     #cfle-events
