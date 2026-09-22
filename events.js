@@ -9,7 +9,7 @@ window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
 var d=document;
 
 var CFG={
-    version:"9.5.2",
+    version:"9.6.0",
 buildId:"CFLE-REGISTRY-DATERANGE-2026-09-15-B",
 
     sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
@@ -21,6 +21,9 @@ buildId:"CFLE-REGISTRY-DATERANGE-2026-09-15-B",
 
     homepageLimit:4,
     requestTimeoutMs:3000,
+    retryCount:1,
+    retryDelayMs:250,
+    homepageWatchMs:15000,
 
     registry:{
         enabled:true,
@@ -63,8 +66,20 @@ var state={
     search:"",
     range:"all",
     bound:false,
-    homeWatcherStarted:false
+    homeWatcherStarted:false,
+
+    render:{
+        upcomingRoot:null,
+        upcomingKey:"",
+        homepageWidget:null,
+        homepageKey:"",
+        pastRoot:null,
+        pastKey:""
+    }
 };
+
+var lastCachePayload=null;
+var newYorkFormatter=null;
     
 function qs(selector,parent){
     return (parent||d).querySelector(selector);
@@ -72,6 +87,32 @@ function qs(selector,parent){
 
 function qsa(selector,parent){
     return [].slice.call((parent||d).querySelectorAll(selector));
+}
+
+function isHomepageContext(){
+    var path=String(
+        window.location.pathname||"/"
+    )
+        .replace(/\/+$/g,"")
+        .toLowerCase();
+
+    if(
+        d.body&&
+        /(^|\s)home(?:\s|$)/
+        .test(d.body.className||"")
+    ){
+        return true;
+    }
+
+    if(
+        path===""||
+        path==="/"||
+        /\/default\.asp$/i.test(path)
+    ){
+        return true;
+    }
+
+    return !!findHomepageMarkerWidget();
 }
 
 function cleanText(value){
@@ -1218,7 +1259,7 @@ function isNavigationAnchor(anchor){
 }
 
 function meaningfulTitle(anchor){
-    var text=oneLine(anchor.innerText||anchor.textContent||"");
+    var text=oneLine(anchor.textContent||anchor.innerText||"");
     if(!text||/^(read more|more|view|view event|details|learn more)$/i.test(text)){
         return "";
     }
@@ -1324,7 +1365,12 @@ function findEventContainer(anchor){
             paths.length===1&&
             paths[0]===anchorPath
         ){
-            return node;
+            return {
+                node:node,
+                text:text,
+                placement:placement,
+                dateInfo:dateInfo
+            };
         }
     }
 
@@ -1342,6 +1388,7 @@ function parseIndexEvents(doc,keepContainers){
         var title;
         var href;
         var path;
+        var match;
         var container;
         var text;
         var placement;
@@ -1360,22 +1407,24 @@ function parseIndexEvents(doc,keepContainers){
         if(!title||!href||seen[path]){
             continue;
         }
-        if(path.indexOf("/aid/"+CFG.parentAid+"/")>-1||/past-events\.htm$/i.test(path)){
+
+        if(
+            path.indexOf("/aid/"+CFG.parentAid+"/")>-1||
+            /past-events\.htm$/i.test(path)
+        ){
             continue;
         }
 
-        container=findEventContainer(anchor);
-        if(!container){
+        match=findEventContainer(anchor);
+
+        if(!match){
             continue;
         }
 
-        text=readableNodeText(container);
-        placement=parsePlacement(text);
-        dateInfo=parseEventDateTime(text);
-
-                if(!placement.recognized||!dateInfo){
-            continue;
-        }
+        container=match.node;
+        text=match.text;
+        placement=match.placement;
+        dateInfo=match.dateInfo;
 
         title=
             parseLabeledValue(
@@ -1384,8 +1433,13 @@ function parseIndexEvents(doc,keepContainers){
             )||
             title;
 
-        location=parseLabeledValue(text,"Location")||CFG.defaultLocation;
-        
+        location=
+            parseLabeledValue(
+                text,
+                "Location"
+            )||
+            CFG.defaultLocation;
+
         eventItem={
             id:"page-"+slug(title)+"-"+dateInfo.startTs,
             title:title,
@@ -1700,13 +1754,36 @@ function registryCandidates(doc,directEvents){
 }
 
 function parseRegistrySourceHtml(html){
-    var doc=new DOMParser().parseFromString(html,"text/html");
-    var directEvents=parseIndexEvents(doc,false);
+    var doc=
+        new DOMParser()
+        .parseFromString(
+            html,
+            "text/html"
+        );
+
+    var directEvents=
+        parseIndexEvents(
+            doc,
+            false
+        );
 
     return {
         events:directEvents,
-        candidates:registryCandidates(doc,directEvents)
+        candidates:
+            registryCandidates(
+                doc,
+                directEvents
+            )
     };
+}
+
+function isTransientRequestFailure(status){
+    return (
+        !status||
+        status===408||
+        status===429||
+        status>=500
+    );
 }
 
 function requestRegistryTargets(candidates,onEvent,onDone){
@@ -1729,93 +1806,184 @@ function requestRegistryTargets(candidates,onEvent,onDone){
     }
 
     function pump(){
-        while(active<CFG.registry.concurrency&&next<list.length){
-            scan(list[next++]);
+        while(
+            active<CFG.registry.concurrency&&
+            next<list.length
+        ){
+            scan(
+                list[next++]
+            );
         }
 
         if(finished===list.length){
             onDone(
                 failures?
-                new Error(String(failures)+" registry target request(s) failed"):
+                new Error(
+                    String(failures)+
+                    " registry target request(s) failed"
+                ):
                 null
             );
         }
     }
 
     function scan(candidate){
-        var xhr=new XMLHttpRequest();
-        var done=false;
         var started=Date.now();
-        var url=
-            candidate.url+
-            (candidate.url.indexOf("?")>-1?"&":"?")+
-            "cfle_event_registry="+
-            Date.now();
+        var attempts=0;
+        var finishedCandidate=false;
 
         active++;
-        window.CFLE_EVENTS_REGISTRY_DEBUG.targetFetchCount++;
 
-        xhr.open("GET",url,true);
-        xhr.timeout=CFG.registry.requestTimeoutMs;
-
-        function finish(ok){
+        function finish(ok,request){
             var eventItem;
 
-            if(done){
+            if(finishedCandidate){
                 return;
             }
 
-            done=true;
+            finishedCandidate=true;
             active--;
             finished++;
 
             window.CFLE_EVENTS_REGISTRY_DEBUG.targets.push({
                 url:candidate.url,
                 ok:!!ok,
-                status:xhr.status||0,
-                milliseconds:Date.now()-started
+                status:request?request.status||0:0,
+                milliseconds:Date.now()-started,
+                attempts:attempts
             });
 
-            if(ok&&xhr.responseText){
+            if(
+                ok&&
+                request&&
+                request.responseText
+            ){
                 try{
-                    eventItem=parseRegistryTargetPage(
-                        xhr.responseText,
-                        candidate
-                    );
+                    eventItem=
+                        parseRegistryTargetPage(
+                            request.responseText,
+                            candidate
+                        );
 
                     if(eventItem){
-                        window.CFLE_EVENTS_REGISTRY_DEBUG.events.push(eventItem);
-                        onEvent(eventItem);
+                        window.CFLE_EVENTS_REGISTRY_DEBUG.events.push(
+                            eventItem
+                        );
+
+                        onEvent(
+                            eventItem
+                        );
                     }
+
                 } catch(error){
+
                     failures++;
                 }
+
             } else {
+
                 failures++;
             }
 
             pump();
         }
 
-        xhr.onreadystatechange=function(){
-            if(xhr.readyState===4){
-                finish(xhr.status>=200&&xhr.status<300);
+        function sendAttempt(){
+            var xhr=
+                new XMLHttpRequest();
+
+            var settled=false;
+
+            var url=
+                candidate.url+
+                (
+                    candidate.url.indexOf("?")>-1?
+                    "&":
+                    "?"
+                )+
+                "cfle_event_registry="+
+                Date.now();
+
+            attempts++;
+
+            window.CFLE_EVENTS_REGISTRY_DEBUG.targetFetchCount++;
+
+            xhr.open(
+                "GET",
+                url,
+                true
+            );
+
+            xhr.timeout=
+                CFG.registry.requestTimeoutMs;
+
+            function fail(){
+                var status=
+                    xhr.status||0;
+
+                if(
+                    settled||
+                    finishedCandidate
+                ){
+                    return;
+                }
+
+                settled=true;
+
+                if(
+                    attempts<=CFG.retryCount&&
+                    isTransientRequestFailure(
+                        status
+                    )
+                ){
+                    window.setTimeout(
+                        sendAttempt,
+                        CFG.retryDelayMs
+                    );
+
+                    return;
+                }
+
+                finish(
+                    false,
+                    xhr
+                );
             }
-        };
 
-        xhr.onerror=function(){
-            finish(false);
-        };
+            xhr.onreadystatechange=function(){
 
-        xhr.ontimeout=function(){
-            finish(false);
-        };
+                if(
+                    xhr.readyState!==4||
+                    settled||
+                    finishedCandidate
+                ){
+                    return;
+                }
 
-        /*
-         * No Range header: there are only a few explicit registry
-         * targets, so a normal same-origin GET is simpler/reliable.
-         */
-        xhr.send(null);
+                if(
+                    xhr.status>=200&&
+                    xhr.status<300
+                ){
+                    settled=true;
+
+                    finish(
+                        true,
+                        xhr
+                    );
+
+                } else {
+
+                    fail();
+                }
+            };
+
+            xhr.onerror=fail;
+            xhr.ontimeout=fail;
+
+            xhr.send(null);
+        }
+
+        sendAttempt();
     }
 
     pump();
@@ -1828,19 +1996,33 @@ function getNewYorkNowParts(){
     var index;
 
     try{
-        parts=new Intl.DateTimeFormat("en-US",{
-            timeZone:"America/New_York",
-            year:"numeric",
-            month:"numeric",
-            day:"numeric",
-            hour:"numeric",
-            minute:"numeric",
-            hour12:false
-        }).formatToParts(now);
+        if(!newYorkFormatter){
+            newYorkFormatter=
+                new Intl.DateTimeFormat(
+                    "en-US",
+                    {
+                        timeZone:"America/New_York",
+                        year:"numeric",
+                        month:"numeric",
+                        day:"numeric",
+                        hour:"numeric",
+                        minute:"numeric",
+                        hour12:false
+                    }
+                );
+        }
+
+        parts=
+            newYorkFormatter
+            .formatToParts(now);
 
         for(index=0;index<parts.length;index++){
             if(parts[index].type!=="literal"){
-                output[parts[index].type]=parseInt(parts[index].value,10);
+                output[parts[index].type]=
+                    parseInt(
+                        parts[index].value,
+                        10
+                    );
             }
         }
 
@@ -1851,7 +2033,9 @@ function getNewYorkNowParts(){
             hour:output.hour===24?0:output.hour,
             minute:output.minute||0
         };
+
     } catch(error){
+
         return {
             year:now.getFullYear(),
             month:now.getMonth()+1,
@@ -2023,58 +2207,155 @@ function parseCalendarLoxHtml(html){
 }
 
 function requestCalendarLox(callback){
-    var request;
     var url;
     var completed=false;
+    var attempts=0;
 
     function finish(error,eventItem){
         if(completed){
             return;
         }
+
         completed=true;
-        callback(error,eventItem);
+
+        callback(
+            error,
+            eventItem
+        );
     }
 
     if(!CFG.lox.enabled){
-        finish(null,null);
+        finish(
+            null,
+            null
+        );
+
         return;
     }
 
-    url=calendarFeedRequestUrl();
-    request=new XMLHttpRequest();
-    request.open("GET",url,true);
-    request.timeout=CFG.requestTimeoutMs;
-    request.onreadystatechange=function(){
-        var eventItem;
+    url=
+        calendarFeedRequestUrl();
 
-        if(request.readyState!==4){
-            return;
-        }
+    function sendAttempt(){
+        var request=
+            new XMLHttpRequest();
 
-        if(request.status>=200&&request.status<300){
-            try{
-                eventItem=parseCalendarLoxHtml(
-                    request.responseText
-                );
-                finish(null,eventItem);
-            } catch(error){
-                finish(error,null);
-            }
-            return;
-        }
+        var settled=false;
 
-        finish(
-            new Error("Calendar feed request failed: "+String(request.status||"unknown")),
-            null
+        attempts++;
+
+        request.open(
+            "GET",
+            url,
+            true
         );
-    };
-    request.onerror=function(){
-        finish(new Error("Calendar feed network error"),null);
-    };
-    request.ontimeout=function(){
-        finish(new Error("Calendar feed timed out"),null);
-    };
-    request.send(null);
+
+        request.timeout=
+            CFG.requestTimeoutMs;
+
+        function fail(error){
+            var status=
+                request.status||0;
+
+            if(
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            settled=true;
+
+            if(
+                attempts<=CFG.retryCount&&
+                isTransientRequestFailure(
+                    status
+                )
+            ){
+                window.setTimeout(
+                    sendAttempt,
+                    CFG.retryDelayMs
+                );
+
+                return;
+            }
+
+            finish(
+                error,
+                null
+            );
+        }
+
+        request.onreadystatechange=function(){
+            var eventItem;
+
+            if(
+                request.readyState!==4||
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            if(
+                request.status>=200&&
+                request.status<300
+            ){
+                settled=true;
+
+                try{
+                    eventItem=
+                        parseCalendarLoxHtml(
+                            request.responseText
+                        );
+
+                    finish(
+                        null,
+                        eventItem
+                    );
+
+                } catch(error){
+
+                    finish(
+                        error,
+                        null
+                    );
+                }
+
+                return;
+            }
+
+            fail(
+                new Error(
+                    "Calendar feed request failed: "+
+                    String(
+                        request.status||
+                        "unknown"
+                    )
+                )
+            );
+        };
+
+        request.onerror=function(){
+            fail(
+                new Error(
+                    "Calendar feed network error"
+                )
+            );
+        };
+
+        request.ontimeout=function(){
+            fail(
+                new Error(
+                    "Calendar feed timed out"
+                )
+            );
+        };
+
+        request.send(null);
+    }
+
+    sendAttempt();
 }
 
 function addSpecialEvents(events){
@@ -2132,46 +2413,84 @@ function serializeEvents(events){
 
 function readCache(){
     try{
-        var raw=window.localStorage.getItem(CFG.cacheKey);
-        var saved=raw?JSON.parse(raw):null;
+        var raw=
+            window.localStorage.getItem(
+                CFG.cacheKey
+            );
+
+        var saved=
+            raw?
+            JSON.parse(raw):
+            null;
 
         if(
             saved&&
             saved.buildId===CFG.buildId&&
             saved.events&&
-            Object.prototype.toString.call(saved.events)==="[object Array]"
+            Object.prototype.toString.call(
+                saved.events
+            )==="[object Array]"
         ){
+            lastCachePayload=
+                JSON.stringify(
+                    saved.events
+                );
+
             return saved.events;
         }
+
     } catch(error){
     }
+
+    lastCachePayload=null;
 
     return [];
 }
 
 function writeCache(events){
     try{
+        var serialized=
+            serializeEvents(
+                events
+            );
+
+        var payload=
+            JSON.stringify(
+                serialized
+            );
+
+        /*
+         * If the fresh result is exactly what was already
+         * cached, there is nothing useful to write again.
+         */
+        if(
+            payload===
+            lastCachePayload
+        ){
+            return;
+        }
+
         window.localStorage.setItem(
             CFG.cacheKey,
             JSON.stringify({
                 buildId:CFG.buildId,
                 time:Date.now(),
-                events:serializeEvents(events)
+                events:serialized
             })
         );
+
+        lastCachePayload=
+            payload;
+
     } catch(error){
     }
 }
 
 function requestSource(callback){
-    var request;
     var completed=false;
     var started=Date.now();
-    var url=
-        CFG.sourceUrl+
-        (CFG.sourceUrl.indexOf("?")>-1?"&":"?")+
-        "cfle_events_registry="+
-        Date.now();
+    var attempts=0;
+    var lastStatus=0;
 
     function finish(error,html){
         if(completed){
@@ -2185,44 +2504,141 @@ function requestSource(callback){
 
         window.CFLE_EVENTS_REGISTRY_DEBUG.source={
             ok:!error,
-            status:request?request.status||0:0,
-            milliseconds:Date.now()-started
+            status:lastStatus,
+            milliseconds:Date.now()-started,
+            attempts:attempts
         };
 
-        callback(error,html);
+        callback(
+            error,
+            html
+        );
     }
 
-    request=new XMLHttpRequest();
-    request.open("GET",url,true);
-    request.timeout=CFG.requestTimeoutMs;
+    function sendAttempt(){
+        var request=
+            new XMLHttpRequest();
 
-    request.onreadystatechange=function(){
-        if(request.readyState!==4){
-            return;
-        }
+        var settled=false;
 
-        if(request.status>=200&&request.status<300){
-            finish(null,request.responseText);
-        } else {
+        /*
+         * Keep the unique timestamp.
+         * This deliberately asks ChabadOne for fresh data
+         * after an event is created or edited.
+         */
+        var url=
+            CFG.sourceUrl+
+            (
+                CFG.sourceUrl.indexOf("?")>-1?
+                "&":
+                "?"
+            )+
+            "cfle_events_registry="+
+            Date.now();
+
+        attempts++;
+
+        request.open(
+            "GET",
+            url,
+            true
+        );
+
+        request.timeout=
+            CFG.requestTimeoutMs;
+
+        function fail(error){
+            var status=
+                request.status||0;
+
+            if(
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            settled=true;
+            lastStatus=status;
+
+            if(
+                attempts<=CFG.retryCount&&
+                isTransientRequestFailure(
+                    status
+                )
+            ){
+                window.setTimeout(
+                    sendAttempt,
+                    CFG.retryDelayMs
+                );
+
+                return;
+            }
+
             finish(
-                new Error(
-                    "Upcoming-page request failed: "+
-                    String(request.status||"unknown")
-                ),
+                error,
                 ""
             );
         }
-    };
 
-    request.onerror=function(){
-        finish(new Error("Upcoming-page network error"),"");
-    };
+        request.onreadystatechange=function(){
 
-    request.ontimeout=function(){
-        finish(new Error("Upcoming-page request timed out"),"");
-    };
+            if(
+                request.readyState!==4||
+                settled||
+                completed
+            ){
+                return;
+            }
 
-    request.send(null);
+            lastStatus=
+                request.status||0;
+
+            if(
+                request.status>=200&&
+                request.status<300
+            ){
+                settled=true;
+
+                finish(
+                    null,
+                    request.responseText
+                );
+
+            } else {
+
+                fail(
+                    new Error(
+                        "Upcoming-page request failed: "+
+                        String(
+                            request.status||
+                            "unknown"
+                        )
+                    )
+                );
+            }
+        };
+
+        request.onerror=function(){
+            fail(
+                new Error(
+                    "Upcoming-page network error"
+                )
+            );
+        };
+
+        request.ontimeout=function(){
+            fail(
+                new Error(
+                    "Upcoming-page request timed out"
+                )
+            );
+        };
+
+        request.send(null);
+    }
+
+    sendAttempt();
 }
     
 function nowTs(){
@@ -2233,27 +2649,44 @@ function isUpcoming(eventItem){
     return eventItem.endTs>=nowTs();
 }
 
-function isPast(eventItem){
-    return eventItem.endTs<nowTs();
-}
-
 function activeUpcomingEvents(){
+    var now=
+        nowTs();
+
     return state.events.filter(function(eventItem){
+
         return (
             eventItem.upcoming||
             eventItem.featured
-        )&&isUpcoming(eventItem);
+        )&&
+        eventItem.endTs>=now;
     });
 }
 
 function pastEvents(){
-    return state.events.filter(function(eventItem){
-        return !eventItem.recurring&&
-            (eventItem.upcoming||eventItem.homepage||eventItem.featured)&&
-            isPast(eventItem);
-    }).sort(function(first,second){
-        return second.startTs-first.startTs;
-    });
+    var now=
+        nowTs();
+
+    return state.events
+        .filter(function(eventItem){
+
+            return (
+                !eventItem.recurring&&
+                (
+                    eventItem.upcoming||
+                    eventItem.homepage||
+                    eventItem.featured
+                )&&
+                eventItem.endTs<now
+            );
+        })
+        .sort(function(first,second){
+
+            return (
+                second.startTs-
+                first.startTs
+            );
+        });
 }
 
 function isAppleDevice(){
@@ -2357,23 +2790,7 @@ function downloadIcs(eventItem){
     }
 }
 
-function formatClockParts(parts){
-    var hour=parts.hour||0;
-    var suffix=hour>=12?"PM":"AM";
-    var display=hour%12;
-    if(display===0){
-        display=12;
-    }
-    return display+":"+pad(parts.minute||0)+" "+suffix;
-}
 
-function homeDateLabel(eventItem){
-    var output=eventItem.date.weekday+", "+eventItem.date.month+" "+eventItem.date.day;
-    if(eventItem.time){
-        output+=" • "+eventItem.time;
-    }
-    return output;
-}
 
 function clockIcon(){
     return '<svg class="cfle-meta-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
@@ -2654,10 +3071,9 @@ function bindCalendarButtons(root){
     });
 }
 
-function eventMatchesRange(eventItem){
-    var nowParts=getNewYorkNowParts();
-    var currentKey=dateKey(nowParts);
-    var eventKey=dateKey(eventItem.startParts);
+function eventMatchesRange(eventItem,nowParts){
+    var currentKey;
+    var eventKey;
     var todayDate;
     var startOfWeek;
     var endOfWeek;
@@ -2665,79 +3081,258 @@ function eventMatchesRange(eventItem){
     if(state.range==="all"){
         return true;
     }
+
+    nowParts=
+        nowParts||
+        getNewYorkNowParts();
+
+    currentKey=
+        dateKey(
+            nowParts
+        );
+
+    eventKey=
+        dateKey(
+            eventItem.startParts
+        );
+
     if(state.range==="thismonth"){
-        return eventItem.startParts.year===nowParts.year&&eventItem.startParts.month===nowParts.month;
+        return (
+            eventItem.startParts.year===
+                nowParts.year&&
+            eventItem.startParts.month===
+                nowParts.month
+        );
     }
+
     if(state.range==="thisweek"){
-        todayDate=new Date(Date.UTC(nowParts.year,nowParts.month-1,nowParts.day));
-        startOfWeek=addDaysToParts(nowParts,-todayDate.getUTCDay());
-        endOfWeek=addDaysToParts(startOfWeek,6);
-        return eventKey>=dateKey(startOfWeek)&&eventKey<=dateKey(endOfWeek)&&eventKey>=currentKey;
+        todayDate=
+            new Date(
+                Date.UTC(
+                    nowParts.year,
+                    nowParts.month-1,
+                    nowParts.day
+                )
+            );
+
+        startOfWeek=
+            addDaysToParts(
+                nowParts,
+                -todayDate.getUTCDay()
+            );
+
+        endOfWeek=
+            addDaysToParts(
+                startOfWeek,
+                6
+            );
+
+        return (
+            eventKey>=
+                dateKey(startOfWeek)&&
+            eventKey<=
+                dateKey(endOfWeek)&&
+            eventKey>=
+                currentKey
+        );
     }
+
     return true;
 }
 
 function filteredUpcomingEvents(){
-    var search=normalized(state.search);
-    return activeUpcomingEvents().filter(function(eventItem){
-        var haystack=normalized(eventItem.title+" "+(eventItem.location?eventItem.location.text:""));
-        return (!search||haystack.indexOf(search)>-1)&&eventMatchesRange(eventItem);
-    });
+    var search=
+        normalized(
+            state.search
+        );
+
+    /*
+     * Only calculate New York's current date once for
+     * the entire filtering pass, and not at all when
+     * the user has selected "All".
+     */
+    var nowParts=
+        state.range==="all"?
+        null:
+        getNewYorkNowParts();
+
+    return activeUpcomingEvents()
+        .filter(function(eventItem){
+
+            var haystack=
+                normalized(
+                    eventItem.title+
+                    " "+
+                    (
+                        eventItem.location?
+                        eventItem.location.text:
+                        ""
+                    )
+                );
+
+            return (
+                (
+                    !search||
+                    haystack.indexOf(search)>-1
+                )&&
+                eventMatchesRange(
+                    eventItem,
+                    nowParts
+                )
+            );
+        });
 }
 
 function renderUpcoming(){
-    var root=qs("#cfle-events");
+    var root=
+        qs("#cfle-events");
+
     var featuredSection;
     var mainSection;
     var count;
     var events;
     var featured=[];
     var regular=[];
+    var countHtml;
+    var featuredHtml;
+    var mainHtml;
+    var renderKey;
 
     if(!root){
         return;
     }
 
-    featuredSection=qs("#cfle-featured-section",root);
-    mainSection=qs("#cfle-main-section",root);
-    count=qs("#cfle-count",root);
-    events=filteredUpcomingEvents();
+    featuredSection=
+        qs(
+            "#cfle-featured-section",
+            root
+        );
+
+    mainSection=
+        qs(
+            "#cfle-main-section",
+            root
+        );
+
+    count=
+        qs(
+            "#cfle-count",
+            root
+        );
+
+    events=
+        filteredUpcomingEvents();
 
     events.forEach(function(eventItem){
+
         if(eventItem.featured){
-            featured.push(eventItem);
+            featured.push(
+                eventItem
+            );
+
         } else {
-            regular.push(eventItem);
+
+            regular.push(
+                eventItem
+            );
         }
     });
 
+    countHtml=
+        '<strong>'+
+        events.length+
+        '</strong> '+
+        (
+            events.length===1?
+            'program':
+            'programs'
+        );
+
+    featuredHtml=
+        featured.length?
+        '<h2 class="cfle-section-title">Featured</h2><div class="cfle-grid cfle-grid--featured">'+
+        featured.map(function(eventItem){
+            return cardHtml(
+                eventItem,
+                true,
+                false
+            );
+        }).join("")+
+        '</div>':
+        "";
+
+    if(regular.length){
+
+        mainHtml=
+            '<div class="cfle-grid">'+
+            regular.map(function(eventItem){
+                return cardHtml(
+                    eventItem,
+                    false,
+                    false
+                );
+            }).join("")+
+            '</div>';
+
+    } else if(!featured.length){
+
+        mainHtml=
+            state.initialLoadPending?
+            '<div class="cfle-empty"><strong>Loading upcoming programs&hellip;</strong><span>Please wait a moment.</span></div>':
+            '<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
+
+    } else {
+
+        mainHtml="";
+    }
+
+    renderKey=
+        countHtml+
+        "\u0001"+
+        featuredHtml+
+        "\u0001"+
+        mainHtml;
+
+    /*
+     * Fresh data frequently equals the cached data that
+     * is already visible. Do not destroy/recreate the same
+     * card DOM and rerun all layout fitting unnecessarily.
+     */
+    if(
+        state.render.upcomingRoot===root&&
+        state.render.upcomingKey===renderKey
+    ){
+        return;
+    }
+
+    state.render.upcomingRoot=
+        root;
+
+    state.render.upcomingKey=
+        renderKey;
+
     if(count){
-        count.innerHTML='<strong>'+events.length+'</strong> '+(events.length===1?'program':'programs');
+        count.innerHTML=
+            countHtml;
     }
 
     if(featuredSection){
-        featuredSection.innerHTML=featured.length?
-            '<h2 class="cfle-section-title">Featured</h2><div class="cfle-grid cfle-grid--featured">'+
-            featured.map(function(eventItem){ return cardHtml(eventItem,true,false); }).join("")+
-            '</div>':"";
+        featuredSection.innerHTML=
+            featuredHtml;
     }
 
     if(mainSection){
-        if(regular.length){
-            mainSection.innerHTML='<div class="cfle-grid">'+
-    regular.map(function(eventItem){ return cardHtml(eventItem,false,false); }).join("")+
-    '</div>';
-        } else if(!featured.length){
-            mainSection.innerHTML=state.initialLoadPending?
-                '<div class="cfle-empty"><strong>Loading upcoming programs&hellip;</strong><span>Please wait a moment.</span></div>':
-                '<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
-        } else {
-            mainSection.innerHTML="";
-        }
+        mainSection.innerHTML=
+            mainHtml;
     }
 
-    bindCalendarButtons(root);
-    scheduleEventTitleFit(root);
+    bindCalendarButtons(
+        root
+    );
+
+    scheduleEventTitleFit(
+        root
+    );
 }
 
 function bindUpcomingUi(){
@@ -2783,183 +3378,515 @@ function bindUpcomingUi(){
 }
 
 function findPendingHomepageMarkerWidget(){
-    var widgets=qsa(".chabad_updates");
+    var widgets=
+        qsa(
+            ".chabad_updates"
+        );
+
     var index;
     var text;
-    for(index=0;index<widgets.length;index++){
-        text=oneLine(widgets[index].innerText||widgets[index].textContent||"");
-        if(text.indexOf("CFLE_PAGE_EVENTS")>-1){
+
+    for(
+        index=0;
+        index<widgets.length;
+        index++
+    ){
+        text=
+            oneLine(
+                widgets[index].textContent||
+                widgets[index].innerText||
+                ""
+            );
+
+        if(
+            text.indexOf(
+                "CFLE_PAGE_EVENTS"
+            )>-1
+        ){
             return widgets[index];
         }
     }
+
     return null;
 }
 
 function findHomepageMarkerWidget(){
-    return qs(".chabad_updates.cfle-home-events-widget")||findPendingHomepageMarkerWidget();
+    return (
+        qs(
+            ".chabad_updates.cfle-home-events-widget"
+        )||
+        findPendingHomepageMarkerWidget()
+    );
 }
 
 function renderHomepage(){
-    var widget=findHomepageMarkerWidget();
+    var widget=
+        findHomepageMarkerWidget();
+
     var events;
     var rows;
+    var html;
 
     if(!widget){
         return;
     }
 
-    events=state.events.filter(function(eventItem){
-        return (
-            eventItem.homepage||
-            eventItem.featured
-        )&&isUpcoming(eventItem);
-    }).sort(function(first,second){
-        if(!!first.featured!==!!second.featured){
-            return first.featured?-1:1;
-        }
-        return first.startTs-second.startTs;
-    }).slice(0,CFG.homepageLimit);
+    events=
+        state.events
+        .filter(function(eventItem){
 
-    rows=events.map(function(eventItem){
+            return (
+                (
+                    eventItem.homepage||
+                    eventItem.featured
+                )&&
+                isUpcoming(
+                    eventItem
+                )
+            );
+        })
+        .sort(function(first,second){
 
-var date=eventDateDisplay(eventItem);
+            if(
+                !!first.featured!==
+                !!second.featured
+            ){
+                return (
+                    first.featured?
+                    -1:
+                    1
+                );
+            }
 
-var homeDateClass=
-    "cfle-home-date-box"+
-    (date.range?" cfle-home-date-box--range":"")+
-    (date.crossMonth?" cfle-home-date-box--cross-month":"");
+            return (
+                first.startTs-
+                second.startTs
+            );
+        })
+        .slice(
+            0,
+            CFG.homepageLimit
+        );
 
-var homeMonthClass=
-    "cfle-home-date-month"+
-    (date.crossMonth?" cfle-date-range-fit":"");
+    rows=
+        events.map(function(eventItem){
 
-var homeDayClass=
-    "cfle-home-date-day"+
-    (date.range?" cfle-date-range-fit":"");
+            var date=
+                eventDateDisplay(
+                    eventItem
+                );
 
-var homeWeekdayClass=
-    "cfle-home-date-weekday"+
-    (date.range?" cfle-date-range-fit":"");
-        
-    return '<a class="cfle-home-event'+
-        (eventItem.featured?' cfle-home-event--featured':'')+
-        '" href="'+escapeHtml(eventItem.url)+'">'+
+            var homeDateClass=
+                "cfle-home-date-box"+
+                (
+                    date.range?
+                    " cfle-home-date-box--range":
+                    ""
+                )+
+                (
+                    date.crossMonth?
+                    " cfle-home-date-box--cross-month":
+                    ""
+                );
 
-'<span class="'+homeDateClass+'">'+
+            var homeMonthClass=
+                "cfle-home-date-month"+
+                (
+                    date.crossMonth?
+                    " cfle-date-range-fit":
+                    ""
+                );
 
-    '<span class="'+homeMonthClass+'">'+
-        escapeHtml(date.month)+
-    '</span>'+
+            var homeDayClass=
+                "cfle-home-date-day"+
+                (
+                    date.range?
+                    " cfle-date-range-fit":
+                    ""
+                );
 
-    '<span class="'+homeDayClass+'">'+
-        escapeHtml(date.day)+
-    '</span>'+
+            var homeWeekdayClass=
+                "cfle-home-date-weekday"+
+                (
+                    date.range?
+                    " cfle-date-range-fit":
+                    ""
+                );
 
-    '<span class="'+homeWeekdayClass+'">'+
-        escapeHtml(date.weekday)+
-    '</span>'+
+            return (
+                '<a class="cfle-home-event'+
+                    (
+                        eventItem.featured?
+                        ' cfle-home-event--featured':
+                        ''
+                    )+
+                    '" href="'+
+                    escapeHtml(
+                        eventItem.url
+                    )+
+                    '">'+
 
-'</span>'+
-        
-        '<span class="cfle-home-event-content">'+
-            '<strong class="cfle-home-event-title">'+
-                escapeHtml(eventItem.title)+
-            '</strong>'+
-            (
-                eventItem.time?
-                '<span class="cfle-home-event-time">'+
-                    clockIcon()+
-                    '<span>'+
-                        escapeHtml(eventItem.time)+
+                    '<span class="'+
+                        homeDateClass+
+                    '">'+
+
+                        '<span class="'+
+                            homeMonthClass+
+                        '">'+
+                            escapeHtml(
+                                date.month
+                            )+
+                        '</span>'+
+
+                        '<span class="'+
+                            homeDayClass+
+                        '">'+
+                            escapeHtml(
+                                date.day
+                            )+
+                        '</span>'+
+
+                        '<span class="'+
+                            homeWeekdayClass+
+                        '">'+
+                            escapeHtml(
+                                date.weekday
+                            )+
+                        '</span>'+
+
                     '</span>'+
-                '</span>':
-                ''
-            )+
-        '</span>'+
 
-        (
-            eventItem.featured?
-            '<span class="cfle-home-featured-star" aria-hidden="true">&#9733;</span>':
-            ''
-        )+
+                    '<span class="cfle-home-event-content">'+
 
-        '<span class="cfle-home-event-arrow" aria-hidden="true">'+
-            '&#8594;'+
-        '</span>'+
+                        '<strong class="cfle-home-event-title">'+
+                            escapeHtml(
+                                eventItem.title
+                            )+
+                        '</strong>'+
 
-    '</a>';
+                        (
+                            eventItem.time?
+                            '<span class="cfle-home-event-time">'+
+                                clockIcon()+
+                                '<span>'+
+                                    escapeHtml(
+                                        eventItem.time
+                                    )+
+                                '</span>'+
+                            '</span>':
+                            ''
+                        )+
 
-}).join("");
+                    '</span>'+
 
-    if(widget.className.indexOf("cfle-home-events-widget")===-1){
-        widget.className+=" cfle-home-events-widget";
+                    (
+                        eventItem.featured?
+                        '<span class="cfle-home-featured-star" aria-hidden="true">&#9733;</span>':
+                        ''
+                    )+
+
+                    '<span class="cfle-home-event-arrow" aria-hidden="true">'+
+                        '&#8594;'+
+                    '</span>'+
+
+                '</a>'
+            );
+
+        })
+        .join("");
+
+    html=
+        '<div class="cfle-home-events-shell">'+
+
+            '<h2 class="cfle-home-events-heading">'+
+                'Upcoming at Chabad'+
+            '</h2>'+
+
+            '<div class="cfle-home-events-list">'+
+
+                (
+                    rows||
+                    (
+                        state.initialLoadPending?
+                        '<div class="cfle-home-events-empty">Loading upcoming programs&hellip;</div>':
+                        '<div class="cfle-home-events-empty">New programs will be posted soon.</div>'
+                    )
+                )+
+
+            '</div>'+
+
+            '<a class="cfle-home-events-more" href="'+
+                escapeHtml(
+                    CFG.upcomingUrl
+                )+
+            '">'+
+                'View More'+
+            '</a>'+
+
+        '</div>';
+
+    if(
+        widget.className.indexOf(
+            "cfle-home-events-widget"
+        )===-1
+    ){
+        widget.className+=
+            " cfle-home-events-widget";
     }
-    widget.className=widget.className.replace(/\s*cfle-home-events-pending/g,"");
-    widget.innerHTML='<div class="cfle-home-events-shell">'+
-        '<h2 class="cfle-home-events-heading">Upcoming at Chabad</h2>'+
-        '<div class="cfle-home-events-list">'+
-            (rows||(
-                state.initialLoadPending?
-                '<div class="cfle-home-events-empty">Loading upcoming programs&hellip;</div>':
-                '<div class="cfle-home-events-empty">New programs will be posted soon.</div>'
-            ))+
-        '</div>'+
-        '<a class="cfle-home-events-more" href="'+escapeHtml(CFG.upcomingUrl)+'">View More</a>'+
-    '</div>';
-    widget.style.visibility="visible";
-    scheduleEventTitleFit(widget);
+
+    widget.className=
+        widget.className.replace(
+            /\s*cfle-home-events-pending/g,
+            ""
+        );
+
+    /*
+     * If the fresh scan produced the exact same homepage
+     * contents already displayed from cache, don't recreate
+     * all of those nodes and rerun fitting.
+     *
+     * A replacement ChabadOne widget still gets rendered,
+     * because its DOM-node reference is different.
+     */
+    if(
+        state.render.homepageWidget!==widget||
+        state.render.homepageKey!==html
+    ){
+        state.render.homepageWidget=
+            widget;
+
+        state.render.homepageKey=
+            html;
+
+        widget.innerHTML=
+            html;
+
+        scheduleEventTitleFit(
+            widget
+        );
+    }
+
+    widget.style.visibility=
+        "visible";
 }
 
 function startHomepageWatcher(){
     var attempts=0;
-    var timer;
-    var observer;
+    var timer=null;
+    var observer=null;
+    var stopTimer=null;
 
-    if(state.homeWatcherStarted){
+    function homepageNeedsRender(){
+        var pending=
+            findPendingHomepageMarkerWidget();
+
+        var widget;
+        var text;
+
+        if(pending){
+            return true;
+        }
+
+        widget=
+            qs(
+                ".chabad_updates.cfle-home-events-widget"
+            );
+
+        if(!widget){
+            return false;
+        }
+
+        /*
+         * Catch the Custom Header safety fallback if it
+         * converted the raw marker before events.js mounted.
+         */
+        if(state.events.length){
+            text=
+                oneLine(
+                    widget.textContent||
+                    widget.innerText||
+                    ""
+                );
+
+            if(
+                text.indexOf(
+                    "Loading upcoming programs"
+                )>-1
+            ){
+                return true;
+            }
+        }
+
+        /*
+         * Catch a complete ChabadOne widget replacement.
+         */
+        return (
+            state.render.homepageWidget&&
+            state.render.homepageWidget!==widget
+        );
+    }
+
+    function tryHomepageRender(){
+
+        if(
+            !homepageNeedsRender()
+        ){
+            return false;
+        }
+
+        renderHomepage();
+
+        return true;
+    }
+
+    function stopWatching(){
+
+        if(timer){
+            window.clearInterval(
+                timer
+            );
+
+            timer=null;
+        }
+
+        if(observer){
+            observer.disconnect();
+
+            observer=null;
+        }
+
+        if(stopTimer){
+            window.clearTimeout(
+                stopTimer
+            );
+
+            stopTimer=null;
+        }
+    }
+
+    /*
+     * renderAll() is shared with Upcoming and Past.
+     * Never start this homepage observer on those pages.
+     */
+    if(
+        state.homeWatcherStarted||
+        !isHomepageContext()
+    ){
         return;
     }
+
     state.homeWatcherStarted=true;
 
     renderHomepage();
 
-    timer=window.setInterval(function(){
-        attempts++;
-        if(findPendingHomepageMarkerWidget()){
-            renderHomepage();
-            window.clearInterval(timer);
-            return;
-        }
-        if(attempts>=30){
-            window.clearInterval(timer);
-        }
-    },300);
+    timer=
+        window.setInterval(
+            function(){
 
-    if(window.MutationObserver&&d.body){
-        observer=new MutationObserver(function(){
-            if(findPendingHomepageMarkerWidget()){
-                renderHomepage();
+                attempts++;
+
+                if(
+                    tryHomepageRender()
+                ){
+                    window.clearInterval(
+                        timer
+                    );
+
+                    timer=null;
+
+                } else if(
+                    attempts>=40
+                ){
+                    window.clearInterval(
+                        timer
+                    );
+
+                    timer=null;
+                }
+            },
+            250
+        );
+
+    if(
+        window.MutationObserver&&
+        d.body
+    ){
+        observer=
+            new MutationObserver(
+                function(){
+
+                    tryHomepageRender();
+                }
+            );
+
+        observer.observe(
+            d.body,
+            {
+                childList:true,
+                subtree:true
             }
-        });
-        observer.observe(d.body,{childList:true,subtree:true});
+        );
     }
+
+    /*
+     * ChabadOne should have settled long before this.
+     * Don't monitor every DOM mutation forever.
+     */
+    stopTimer=
+        window.setTimeout(
+            stopWatching,
+            CFG.homepageWatchMs
+        );
 }
 
 function renderPast(){
-    var root=qs("#cfle-past-events");
+    var root=
+        qs(
+            "#cfle-past-events"
+        );
+
     var events;
+    var html;
 
     if(!root){
         return;
     }
 
-    events=pastEvents();
-    root.innerHTML=events.length?
-        '<div class="cfle-past-intro">Recently concluded programs</div><div class="cfle-grid cfle-grid--past">'+
-        events.map(function(eventItem){ return cardHtml(eventItem,false,true); }).join("")+
-        '</div>':
-                '<div class="cfle-empty"><strong>No new archived events yet.</strong><span>Your existing historical gallery remains below.</span></div>';
+    events=
+        pastEvents();
 
-    scheduleEventDateRangeFit(root);
+    html=
+        events.length?
+        '<div class="cfle-past-intro">Recently concluded programs</div><div class="cfle-grid cfle-grid--past">'+
+        events.map(function(eventItem){
+            return cardHtml(
+                eventItem,
+                false,
+                true
+            );
+        }).join("")+
+        '</div>':
+        '<div class="cfle-empty"><strong>No new archived events yet.</strong><span>Your existing historical gallery remains below.</span></div>';
+
+    if(
+        state.render.pastRoot===root&&
+        state.render.pastKey===html
+    ){
+        return;
+    }
+
+    state.render.pastRoot=
+        root;
+
+    state.render.pastKey=
+        html;
+
+    root.innerHTML=
+        html;
+
+    scheduleEventDateRangeFit(
+        root
+    );
 }
 
 function hideNativeSourceContainers(events){
@@ -3055,140 +3982,369 @@ function refreshCombinedEvents(writeToStorage){
     }
 }
 
+function processRegistrySnapshot(parsed){
+    var registryScanBuffer=[];
+
+    state.pageEvents=
+        parsed.events||[];
+
+    state.pageDone=true;
+    state.pageSuccess=true;
+
+    /*
+     * Direct Web Documents are already known.
+     * Keep cached New Link targets on screen while
+     * the current target pages refresh.
+     */
+    scheduleRefresh(true);
+
+    requestRegistryTargets(
+        parsed.candidates||[],
+
+        function(eventItem){
+
+            registryScanBuffer.push(
+                eventItem
+            );
+
+            state.registryEvents=
+                mergeEventLists(
+                    state.registryEvents,
+                    [eventItem]
+                );
+
+            scheduleRefresh(true);
+        },
+
+        function(targetError){
+
+            state.registryDone=true;
+
+            state.registrySuccess=
+                !targetError;
+
+            /*
+             * If every current target was successfully
+             * checked, the fresh registry is authoritative.
+             *
+             * If one target failed temporarily, preserve
+             * its cached fallback rather than making the
+             * event vanish.
+             */
+            if(!targetError){
+                state.registryEvents=
+                    registryScanBuffer;
+            }
+
+            scheduleRefresh(true);
+        }
+    );
+}
+
+window.CFLE_EVENTS_STATUS=function(){
+    var saved=null;
+
+    var widget=
+        findHomepageMarkerWidget();
+
+    var pending=
+        findPendingHomepageMarkerWidget();
+
+    var widgetText="";
+
+    try{
+        saved=
+            JSON.parse(
+                window.localStorage.getItem(
+                    CFG.cacheKey
+                )||
+                "null"
+            );
+
+    } catch(error){
+    }
+
+    if(widget){
+        widgetText=
+            oneLine(
+                widget.textContent||
+                widget.innerText||
+                ""
+            );
+    }
+
+    return {
+        version:
+            CFG.version,
+
+        buildId:
+            CFG.buildId,
+
+        context:{
+            homepage:
+                isHomepageContext(),
+
+            upcomingPage:
+                !!qs("#cfle-events"),
+
+            pastPage:
+                !!qs("#cfle-past-events")
+        },
+
+        state:{
+            events:
+                state.events.length,
+
+            pageEvents:
+                state.pageEvents.length,
+
+            registryEvents:
+                state.registryEvents.length,
+
+            hasCalendarLox:
+                !!state.calendarLox,
+
+            pageDone:
+                state.pageDone,
+
+            registryDone:
+                state.registryDone,
+
+            calendarDone:
+                state.calendarDone,
+
+            pageSuccess:
+                state.pageSuccess,
+
+            registrySuccess:
+                state.registrySuccess,
+
+            calendarSuccess:
+                state.calendarSuccess,
+
+            initialLoadPending:
+                state.initialLoadPending
+        },
+
+        cache:{
+            present:
+                !!saved,
+
+            buildId:
+                saved?
+                saved.buildId:
+                null,
+
+            eventCount:
+                saved&&saved.events?
+                saved.events.length:
+                0,
+
+            ageMs:
+                saved&&saved.time?
+                Date.now()-saved.time:
+                null
+        },
+
+        homepageWidget:{
+            markerPresent:
+                !!pending,
+
+            widgetPresent:
+                !!widget,
+
+            eventRows:
+                widget?
+                qsa(
+                    ".cfle-home-event",
+                    widget
+                ).length:
+                0,
+
+            loading:
+                widgetText.indexOf(
+                    "Loading upcoming programs"
+                )>-1
+        },
+
+        network:
+            window.CFLE_EVENTS_REGISTRY_DEBUG||
+            null
+    };
+};
+    
 function loadEvents(){
     var cached;
     var currentEvents=[];
 
+    var upcomingRoot=
+        qs(
+            "#cfle-events"
+        );
+
+    var pastRoot=
+        qs(
+            "#cfle-past-events"
+        );
+
     var isHome=
-        d.body&&
-        /(^|\s)home(?:\s|$)/
-        .test(d.body.className||"");
+        isHomepageContext();
+
+    var needsLox=
+        isHome||
+        !!upcomingRoot;
 
     /*
-     * The expensive work still runs only where event data is used.
+     * Don't do event-network work on ordinary site pages.
      */
     if(
         !isHome&&
-        !qs("#cfle-events")&&
-        !qs("#cfle-past-events")
+        !upcomingRoot&&
+        !pastRoot
     ){
         return;
     }
 
-    cached=readCache();
-    splitCachedEvents(cached);
+    /*
+     * First paint from the last-known cache.
+     */
+    cached=
+        readCache();
+
+    splitCachedEvents(
+        cached
+    );
 
     /*
-     * Keep the existing instant parser on the actual Upcoming page.
+     * Upcoming itself already contains native direct
+     * Web Document information, so continue parsing that
+     * immediately exactly as before.
      */
-    if(qs("#cfle-events")){
-        currentEvents=parseIndexEvents(d,true);
+    if(upcomingRoot){
+
+        currentEvents=
+            parseIndexEvents(
+                d,
+                true
+            );
 
         if(currentEvents.length){
-            hideNativeSourceContainers(currentEvents);
-            state.pageEvents=currentEvents;
+
+            hideNativeSourceContainers(
+                currentEvents
+            );
+
+            state.pageEvents=
+                currentEvents;
         }
     }
 
     /*
-     * Cached events paint immediately.
+     * Past Events can never display recurring Lox & Learn,
+     * so a Past-only page doesn't need to request Calendar.
      */
-    refreshCombinedEvents(false);
+    if(!needsLox){
+
+        state.calendarLox=
+            null;
+
+        state.calendarDone=
+            true;
+
+        state.calendarSuccess=
+            true;
+    }
 
     /*
-     * Lox & Learn remains sourced only from ChabadOne Calendar.
+     * Cached/direct events appear immediately.
      */
-    requestCalendarLox(function(error,eventItem){
-        state.calendarDone=true;
-        state.calendarSuccess=!error;
-
-        if(!error){
-            state.calendarLox=eventItem||null;
-        }
-
-        scheduleRefresh(
-            state.calendarSuccess||
-            state.pageSuccess||
-            state.registrySuccess
-        );
-    });
+    refreshCombinedEvents(
+        false
+    );
 
     /*
-     * ONE registry request: Upcoming at Chabad.
+     * Homepage + Upcoming:
+     * refresh Lox in parallel.
      */
-    requestSource(function(error,html){
-        var parsed;
-        var registryScanBuffer=[];
+    if(needsLox){
 
-        if(error||!html){
-            state.pageDone=true;
-            state.registryDone=true;
-            state.pageSuccess=false;
-            state.registrySuccess=false;
+        requestCalendarLox(
+            function(error,eventItem){
 
-            scheduleRefresh(state.calendarSuccess);
-            return;
-        }
+                state.calendarDone=
+                    true;
 
-        try{
-            parsed=parseRegistrySourceHtml(html);
+                state.calendarSuccess=
+                    !error;
 
-            /*
-             * Existing child Web Documents are parsed directly from
-             * Upcoming at Chabad exactly as before.
-             */
-            state.pageEvents=parsed.events||[];
-            state.pageDone=true;
-            state.pageSuccess=true;
-
-            /*
-             * Cached linked-page events stay visible while the very
-             * small explicit registry target list refreshes.
-             */
-            scheduleRefresh(true);
-
-            requestRegistryTargets(
-                parsed.candidates||[],
-
-                function(eventItem){
-                    registryScanBuffer.push(eventItem);
-
-                    state.registryEvents=
-                        mergeEventLists(
-                            state.registryEvents,
-                            [eventItem]
-                        );
-
-                    scheduleRefresh(true);
-                },
-
-                function(targetError){
-                    state.registryDone=true;
-                    state.registrySuccess=!targetError;
-
-                    /*
-                     * If every target was reached successfully,
-                     * replace the old registry cache with exactly
-                     * what is registered/valid now. If a network
-                     * request failed, keep cached targets as fallback.
-                     */
-                    if(!targetError){
-                        state.registryEvents=registryScanBuffer;
-                    }
-
-                    scheduleRefresh(true);
+                if(!error){
+                    state.calendarLox=
+                        eventItem||
+                        null;
                 }
-            );
 
-        } catch(parseError){
-            state.pageDone=true;
-            state.registryDone=true;
-            state.pageSuccess=false;
-            state.registrySuccess=false;
+                scheduleRefresh(
+                    state.calendarSuccess||
+                    state.pageSuccess||
+                    state.registrySuccess
+                );
+            }
+        );
+    }
 
-            scheduleRefresh(state.calendarSuccess);
+    /*
+     * ALWAYS perform one fresh request to Upcoming at Chabad.
+     *
+     * This is deliberate: cached data gives us speed, while
+     * the fresh timestamped request means a newly published or
+     * edited event can replace that cached information right away.
+     */
+    requestSource(
+        function(error,html){
+
+            var parsed;
+
+            if(
+                error||
+                !html
+            ){
+                state.pageDone=true;
+                state.registryDone=true;
+
+                state.pageSuccess=false;
+                state.registrySuccess=false;
+
+                scheduleRefresh(
+                    state.calendarSuccess
+                );
+
+                return;
+            }
+
+            try{
+                parsed=
+                    parseRegistrySourceHtml(
+                        html
+                    );
+
+                processRegistrySnapshot(
+                    parsed
+                );
+
+            } catch(parseError){
+
+                state.pageDone=true;
+                state.registryDone=true;
+
+                state.pageSuccess=false;
+                state.registrySuccess=false;
+
+                scheduleRefresh(
+                    state.calendarSuccess
+                );
+            }
         }
-    });
+    );
 }
 
 function start(){
