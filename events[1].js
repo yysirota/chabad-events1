@@ -1,0 +1,4455 @@
+(function(){
+"use strict";
+
+if(window.CFLE_EVENTS_CLEAN_V1_LOADED){
+    return;
+}
+window.CFLE_EVENTS_CLEAN_V1_LOADED=true;
+
+var d=document;
+
+var CFG={
+    version:"9.8.0",
+buildId:"CFLE-HOMEPAGE-LAYOUT-2026-10-07-A",
+
+    sourceUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
+    upcomingUrl:"/templates/articlecco_cdo/aid/7437974/jewish/Upcoming-at-Chabad.htm",
+    pastUrl:"/templates/articlecco_cdo/aid/4214769/jewish/Past-Events.htm",
+
+    parentAid:"7437974",
+    cacheKey:"cfleEventsCleanV4",
+
+    homepageLimit:6,
+    requestTimeoutMs:3000,
+    retryCount:1,
+    retryDelayMs:250,
+    homepageWatchMs:15000,
+
+    registry:{
+        enabled:true,
+        concurrency:4,
+        requestTimeoutMs:3000,
+        maxTargets:20
+    },
+
+    defaultLocation:"Chabad of Fort Lee, 808 Abbott Blvd, Fort Lee, NJ 07024",
+
+    lox:{
+        enabled:true,
+        title:"Lox & Learn",
+        url:"/templates/articlecco_cdo/aid/1202745/jewish/Lox-Learn.htm",
+        calendarFeedUrl:"/templates/events.htm",
+        homepage:true,
+        upcoming:true
+    }
+};
+
+window.CFLE_EVENTS_VERSION=CFG.version;
+window.CFLE_EVENTS_BUILD_ID=CFG.buildId;
+
+var state={
+    events:[],
+    pageEvents:[],
+    registryEvents:[],
+    calendarLox:null,
+
+    pageDone:false,
+    registryDone:false,
+    calendarDone:false,
+
+    pageSuccess:false,
+    registrySuccess:false,
+    calendarSuccess:false,
+
+    initialLoadPending:true,
+
+    search:"",
+    range:"all",
+    bound:false,
+    homeWatcherStarted:false,
+
+    render:{
+        upcomingRoot:null,
+        upcomingKey:"",
+        homepageWidget:null,
+        homepageKey:"",
+        pastRoot:null,
+        pastKey:""
+    }
+};
+
+var lastCachePayload=null;
+var newYorkFormatter=null;
+    
+function qs(selector,parent){
+    return (parent||d).querySelector(selector);
+}
+
+function qsa(selector,parent){
+    return [].slice.call((parent||d).querySelectorAll(selector));
+}
+
+function isHomepageContext(){
+    var path=String(
+        window.location.pathname||"/"
+    )
+        .replace(/\/+$/g,"")
+        .toLowerCase();
+
+    if(
+        d.body&&
+        /(^|\s)home(?:\s|$)/
+        .test(d.body.className||"")
+    ){
+        return true;
+    }
+
+    if(
+        path===""||
+        path==="/"||
+        /\/default\.asp$/i.test(path)
+    ){
+        return true;
+    }
+
+    return !!findHomepageMarkerWidget();
+}
+
+function cleanText(value){
+    return String(value||"")
+        .replace(/\u00a0/g," ")
+        .replace(/[\t\r]+/g," ")
+        .replace(/[–—]/g,"-")
+        .replace(/ +/g," ")
+        .replace(/\s*\n\s*/g,"\n")
+        .replace(/^\s+|\s+$/g,"");
+}
+
+function oneLine(value){
+    return cleanText(value).replace(/\s+/g," ");
+}
+
+function normalized(value){
+    return oneLine(value).toLowerCase();
+}
+
+function readableNodeText(node){
+    var text;
+    var clone;
+    var owner;
+
+    if(!node){
+        return "";
+    }
+
+    clone=node.cloneNode(true);
+    owner=clone.ownerDocument||d;
+
+    qsa(
+        "br,p,div,li,section,article,h1,h2,h3,h4,h5,h6,td,tr",
+        clone
+    ).forEach(function(element){
+        if(element.parentNode){
+            element.parentNode.insertBefore(
+                owner.createTextNode(" "),
+                element
+            );
+        }
+        element.appendChild(
+            owner.createTextNode(" ")
+        );
+    });
+
+    return cleanText(clone.textContent||"");
+}
+
+function escapeHtml(value){
+return String(value||"").replace(/[&<>\"]/g,function(character){
+        return {
+            "&":"&amp;",
+            "<":"&lt;",
+            ">":"&gt;",
+            "\"":"&quot;"
+        }[character];
+    });
+}
+
+/* ============================================================
+   DYNAMIC EVENT-TITLE FITTING
+   Keeps short titles on one line and longer titles within two.
+   ============================================================ */
+
+function measuredLineHeight(element){
+
+    var styles=
+        window.getComputedStyle(element);
+
+    var lineHeight=
+        parseFloat(styles.lineHeight);
+
+    if(isNaN(lineHeight)){
+
+        lineHeight=
+            parseFloat(styles.fontSize)*
+            1.08;
+    }
+
+    return lineHeight;
+}
+
+function fitTitleElement(
+    element,
+    maximumSize,
+    minimumSize,
+    shortTitleLimit,
+    forceImportant
+){
+
+    var text;
+    var preferredLines;
+    var currentSize;
+
+    function setFontSize(size){
+        if(forceImportant){
+            element.style.setProperty(
+                "font-size",
+                size+"px",
+                "important"
+            );
+        } else {
+            element.style.fontSize=
+                size+"px";
+        }
+    }
+
+    if(
+        !element ||
+        !element.offsetWidth
+    ){
+        return;
+    }
+
+    text=
+        oneLine(
+            element.textContent||
+            element.innerText||
+            ""
+        );
+
+    /*
+     * Short titles such as "Lox & Learn"
+     * should stay on one line.
+     *
+     * Longer titles may use two lines.
+     */
+    preferredLines=
+        text.length<=shortTitleLimit?
+        1:
+        2;
+
+    function prepareForMeasurement(lines){
+
+        element.style.display=
+            "block";
+
+        element.style.overflow=
+            "visible";
+
+        element.style.textOverflow=
+            "clip";
+
+        element.style.webkitLineClamp=
+            "unset";
+
+        element.style.webkitBoxOrient=
+            "initial";
+
+        element.style.lineHeight=
+            "1.06";
+
+        element.style.whiteSpace=
+            lines===1?
+            "nowrap":
+            "normal";
+    }
+
+    function fitsWithin(lines){
+
+        var allowedHeight;
+
+        if(lines===1){
+
+            return (
+                element.scrollWidth<=
+                element.clientWidth+1
+            );
+        }
+
+        allowedHeight=
+            measuredLineHeight(element)*
+            lines;
+
+        return (
+            element.scrollHeight<=
+            allowedHeight+2
+        );
+    }
+
+    function reduceUntilFit(lines){
+
+        currentSize=
+            maximumSize;
+
+        prepareForMeasurement(lines);
+
+        while(
+            currentSize>
+            minimumSize
+        ){
+
+            setFontSize(
+                currentSize
+            );
+
+            if(fitsWithin(lines)){
+                break;
+            }
+
+            currentSize--;
+        }
+    }
+
+    reduceUntilFit(
+        preferredLines
+    );
+
+    /*
+     * If even the minimum size cannot keep a short title
+     * on one line, allow it to use two lines rather than
+     * clipping any words.
+     */
+    if(
+        preferredLines===1 &&
+        !fitsWithin(1)
+    ){
+
+        preferredLines=2;
+
+        reduceUntilFit(2);
+    }
+
+    setFontSize(
+        currentSize
+    );
+
+    element.style.overflow=
+        "hidden";
+
+    if(preferredLines===1){
+
+        element.style.display=
+            "block";
+
+        element.style.whiteSpace=
+            "nowrap";
+
+        element.style.webkitLineClamp=
+            "unset";
+
+    } else {
+
+        element.style.display=
+            "-webkit-box";
+
+        element.style.whiteSpace=
+            "normal";
+
+        element.style.webkitBoxOrient=
+            "vertical";
+
+        element.style.webkitLineClamp=
+            "2";
+    }
+}
+
+/*
+ * Homepage two-line title alignment.
+ *
+ * If a homepage title actually renders on two lines:
+ * - find the real width of the longer rendered line;
+ * - shrink only the title box to that width;
+ * - keep that box anchored at the normal left starting point;
+ * - center the shorter line inside it.
+ *
+ * One-line titles are not changed.
+ */
+function alignWrappedHomepageTitle(title){
+
+    var range;
+    var rects;
+    var lines=[];
+    var index;
+    var lineIndex;
+    var rect;
+    var line;
+    var longestWidth=0;
+    var availableWidth;
+    var targetWidth;
+
+    if(
+        !title||
+        !document.createRange
+    ){
+        return;
+    }
+
+
+    /*
+     * Measure the title exactly as the existing fitter
+     * has already rendered it.
+     */
+    range=document.createRange();
+
+    range.selectNodeContents(
+        title
+    );
+
+    rects=range.getClientRects();
+
+
+    /*
+     * Combine text rectangles that belong to the same
+     * visual line.
+     */
+    for(index=0;index<rects.length;index++){
+
+        rect=rects[index];
+
+        if(
+            !rect.width||
+            !rect.height
+        ){
+            continue;
+        }
+
+        line=null;
+
+        for(
+            lineIndex=0;
+            lineIndex<lines.length;
+            lineIndex++
+        ){
+
+            if(
+                Math.abs(
+                    lines[lineIndex].top-
+                    rect.top
+                )<3
+            ){
+
+                line=
+                    lines[lineIndex];
+
+                break;
+            }
+        }
+
+
+        if(!line){
+
+            lines.push({
+                top:rect.top,
+                left:rect.left,
+                right:rect.right
+            });
+
+        } else {
+
+            line.left=
+                Math.min(
+                    line.left,
+                    rect.left
+                );
+
+            line.right=
+                Math.max(
+                    line.right,
+                    rect.right
+                );
+        }
+    }
+
+
+    /*
+     * A one-line title stays EXACTLY as it is now.
+     */
+    if(lines.length<2){
+        return;
+    }
+
+
+    /*
+     * Find the width of whichever rendered line
+     * sticks out the farthest.
+     */
+    for(
+        lineIndex=0;
+        lineIndex<lines.length;
+        lineIndex++
+    ){
+
+        longestWidth=
+            Math.max(
+                longestWidth,
+                lines[lineIndex].right-
+                lines[lineIndex].left
+            );
+    }
+
+
+    if(!longestWidth){
+        return;
+    }
+
+
+    availableWidth=
+        title.parentNode?
+        title.parentNode.clientWidth:
+        title.clientWidth;
+
+
+    if(!availableWidth){
+        return;
+    }
+
+
+    /*
+     * Add 2px only as protection against fractional-pixel
+     * browser rounding changing the existing line break.
+     */
+    targetWidth=
+        Math.min(
+            availableWidth,
+            Math.ceil(longestWidth)+2
+        );
+
+
+    /*
+     * The parent is already aligned to the left beside
+     * the date box.
+     *
+     * Therefore:
+     * - the longest line begins at the normal single-line position;
+     * - the shorter line is centered relative to the longer line.
+     */
+    title.style.width=
+        targetWidth+"px";
+
+    title.style.textAlign=
+        "center";
+}
+    
+function fitAllEventTitles(root){
+
+    var scope=
+        root||
+        document;
+
+    /*
+     * Homepage titles:
+     * short titles remain on one line;
+     * longer titles may use two.
+     */
+        qsa(
+    ".cfle-home-event-title",
+    scope
+).forEach(function(title){
+
+    /*
+     * First remove ONLY the two values that our
+     * alignment helper may have added on a previous
+     * render/resize.
+     *
+     * This lets the existing title fitter calculate
+     * from the normal full width every time.
+     */
+    title.style.removeProperty(
+        "width"
+    );
+
+    title.style.removeProperty(
+        "text-align"
+    );
+
+
+    /*
+     * EXISTING title-fitting behavior.
+     * Do not change these numbers.
+     */
+    var homeList=
+        closestBySelector(
+            title,
+            ".cfle-home-events-list"
+        );
+
+    var homeCount=
+        parseInt(
+            homeList?
+            homeList.getAttribute(
+                "data-cfle-count"
+            ):
+            "1",
+            10
+        );
+
+    if(
+        isNaN(homeCount)||
+        homeCount<1
+    ){
+        homeCount=1;
+    }
+
+    /*
+     * One or two homepage events intentionally get the
+     * larger presentation. Three or more use the compact
+     * three-across scale.
+     *
+     * The fitter still guarantees:
+     * - short titles stay on one line whenever possible;
+     * - long titles may use two lines;
+     * - a title is reduced only when it would need a third line.
+     *
+     * Keep every wrapped line LEFT aligned.
+     */
+    if(homeCount<=2){
+
+        fitTitleElement(
+            title,
+            30,
+            20,
+            20,
+            true
+        );
+
+    } else {
+
+        fitTitleElement(
+            title,
+            26,
+            18,
+            18,
+            true
+        );
+    }
+
+    title.style.setProperty(
+        "width",
+        "100%",
+        "important"
+    );
+
+    title.style.setProperty(
+        "text-align",
+        "left",
+        "important"
+    );
+});
+    /*
+     * Main Upcoming at Chabad cards.
+     */
+    qsa(
+        ".cfle-event-title a",
+        scope
+    ).forEach(function(title){
+
+        var card=
+            closestBySelector(
+                title,
+                ".cfle-card"
+            );
+
+        var cardWidth=
+            card?
+            card.getBoundingClientRect()
+                .width:
+            0;
+
+       if(window.innerWidth<=700){
+
+    var mobileTitleText=
+        oneLine(
+            title.textContent||
+            title.innerText||
+            ""
+        );
+
+    title.classList.remove(
+        "cfle-mobile-short-title"
+    );
+
+    /*
+     * Short titles such as "Lox & Learn"
+     * must remain on one line.
+     */
+    if(mobileTitleText.length<=18){
+
+        title.classList.add(
+            "cfle-mobile-short-title"
+        );
+
+        /*
+         * Remove measurements previously written
+         * by the automatic title fitter.
+         */
+        title.style.removeProperty(
+            "font-size"
+        );
+
+        title.style.removeProperty(
+            "display"
+        );
+
+        title.style.removeProperty(
+            "white-space"
+        );
+
+        title.style.removeProperty(
+            "overflow"
+        );
+
+        title.style.removeProperty(
+            "-webkit-line-clamp"
+        );
+
+        title.style.removeProperty(
+            "-webkit-box-orient"
+        );
+
+    } else {
+
+        /*
+         * Longer titles may occupy a maximum
+         * of two lines.
+         */
+        fitTitleElement(
+            title,
+            28,
+            16,
+            0
+        );
+    }
+
+        } else if(cardWidth>=700){
+
+            /*
+             * Full-width desktop card.
+             */
+            fitTitleElement(
+                title,
+                42,
+                24,
+                26
+            );
+
+        } else {
+
+            /*
+             * Half-width desktop card.
+             */
+            fitTitleElement(
+                title,
+                28,
+                18,
+                20
+            );
+        }
+    });
+}
+
+function fitDateRangeElement(element){
+
+    var box;
+    var boxStyles;
+    var elementStyles;
+    var availableWidth;
+    var maximumSize;
+    var minimumSize=8;
+    var low;
+    var high;
+    var middle;
+    var best;
+
+    if(!element){
+        return;
+    }
+
+    box=
+        closestBySelector(
+            element,
+            ".cfle-date,.cfle-home-date-box"
+        );
+
+    if(
+        !box||
+        !box.clientWidth
+    ){
+        return;
+    }
+
+    /*
+     * Remove the fitted value from the previous viewport
+     * before measuring again.
+     */
+    element.style.removeProperty(
+        "font-size"
+    );
+
+    element.style.setProperty(
+        "white-space",
+        "nowrap",
+        "important"
+    );
+
+    boxStyles=
+        window.getComputedStyle(box);
+
+    elementStyles=
+        window.getComputedStyle(element);
+
+    availableWidth=
+        box.clientWidth-
+        (parseFloat(boxStyles.paddingLeft)||0)-
+        (parseFloat(boxStyles.paddingRight)||0)-
+        4;
+
+    maximumSize=
+        Math.floor(
+            parseFloat(
+                elementStyles.fontSize
+            )||12
+        );
+
+    low=minimumSize;
+    high=maximumSize;
+    best=minimumSize;
+
+    /*
+     * Find the largest font size that fits.
+     *
+     * IMPORTANT:
+     * Use an inline !important value because the responsive
+     * stylesheet itself uses font-size:... !important.
+     */
+    while(low<=high){
+
+        middle=
+            Math.floor(
+                (low+high)/2
+            );
+
+        element.style.setProperty(
+            "font-size",
+            middle+"px",
+            "important"
+        );
+
+        if(
+            element.scrollWidth<=
+            availableWidth+1
+        ){
+
+            best=middle;
+            low=middle+1;
+
+        } else {
+
+            high=middle-1;
+        }
+    }
+
+    element.style.setProperty(
+        "font-size",
+        best+"px",
+        "important"
+    );
+}
+
+function fitAllEventDateRanges(root){
+
+    var scope=
+        root||
+        document;
+
+    qsa(
+        ".cfle-date-range-fit",
+        scope
+    ).forEach(function(element){
+
+        fitDateRangeElement(
+            element
+        );
+    });
+}
+
+
+function scheduleEventDateRangeFit(root){
+
+    var runFit=function(){
+
+        fitAllEventDateRanges(
+            root||
+            document
+        );
+    };
+
+    if(window.requestAnimationFrame){
+
+        window.requestAnimationFrame(
+            runFit
+        );
+
+    } else {
+
+        window.setTimeout(
+            runFit,
+            0
+        );
+    }
+}
+    
+function scheduleEventTitleFit(root){
+
+var runFit=function(){
+
+    var scope=
+        root||
+        document;
+
+    fitAllEventTitles(
+        scope
+    );
+
+    fitAllEventDateRanges(
+        scope
+    );
+};
+    
+    if(window.requestAnimationFrame){
+
+        window.requestAnimationFrame(
+            runFit
+        );
+
+    } else {
+
+        window.setTimeout(
+            runFit,
+            0
+        );
+    }
+}
+
+function absoluteUrl(url){
+    var anchor;
+    if(!url){
+        return "";
+    }
+    anchor=d.createElement("a");
+    anchor.href=url;
+    return anchor.href;
+}
+
+function canonicalPath(url){
+    var anchor=d.createElement("a");
+    anchor.href=url||"";
+    return (anchor.pathname||"")
+        .replace(/\/+$/g,"")
+        .toLowerCase();
+}
+
+function slug(value){
+    return normalized(value)
+        .replace(/[’']/g,"")
+        .replace(/&/g," and ")
+        .replace(/[^a-z0-9]+/g,"-")
+        .replace(/^-+|-+$/g,"");
+}
+
+function pad(number){
+    number=parseInt(number,10);
+    return number<10?"0"+number:String(number);
+}
+
+function monthNumber(name){
+    var months={
+        jan:1,january:1,
+        feb:2,february:2,
+        mar:3,march:3,
+        apr:4,april:4,
+        may:5,
+        jun:6,june:6,
+        jul:7,july:7,
+        aug:8,august:8,
+        sep:9,sept:9,september:9,
+        oct:10,october:10,
+        nov:11,november:11,
+        dec:12,december:12
+    };
+    return months[String(name||"").toLowerCase()]||0;
+}
+
+function monthName(number){
+    return [
+        "","January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    ][number]||"";
+}
+
+function weekdayNameFromYmd(year,month,day){
+    return [
+        "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
+    ][new Date(Date.UTC(year,month-1,day)).getUTCDay()];
+}
+
+function parseClock(value){
+    var match=oneLine(value).match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+    var hour;
+    if(!match){
+        return null;
+    }
+    hour=parseInt(match[1],10);
+    if(match[3].toLowerCase()==="pm"&&hour!==12){
+        hour+=12;
+    }
+    if(match[3].toLowerCase()==="am"&&hour===12){
+        hour=0;
+    }
+    return {
+        hour:hour,
+        minute:parseInt(match[2]||"0",10),
+        label:parseInt(match[1],10)+(match[2]?":"+match[2]:"")+" "+match[3].toUpperCase()
+    };
+}
+
+function parseDatePart(value){
+    var text=oneLine(value);
+    var match;
+
+    match=text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+    if(match){
+        return {
+            year:parseInt(match[1],10),
+            month:parseInt(match[2],10),
+            day:parseInt(match[3],10),
+            raw:match[0]
+        };
+    }
+
+    match=text.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
+    if(match){
+        return {
+            year:parseInt(match[3],10),
+            month:parseInt(match[1],10),
+            day:parseInt(match[2],10),
+            raw:match[0]
+        };
+    }
+
+    match=text.match(/\b(January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(20\d{2})\b/i);
+    if(match){
+        return {
+            year:parseInt(match[3],10),
+            month:monthNumber(match[1]),
+            day:parseInt(match[2],10),
+            raw:match[0]
+        };
+    }
+
+    match=text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*,?\s*(20\d{2})\b/i);
+    if(match){
+        return {
+            year:parseInt(match[3],10),
+            month:monthNumber(match[2]),
+            day:parseInt(match[1],10),
+            raw:match[0]
+        };
+    }
+
+    return null;
+}
+
+function nthSunday(year,month,nth){
+    var firstDay=new Date(Date.UTC(year,month-1,1)).getUTCDay();
+    var firstSunday=1+((7-firstDay)%7);
+    return firstSunday+((nth-1)*7);
+}
+
+function newYorkOffsetHours(parts){
+    var marchSecondSunday=nthSunday(parts.year,3,2);
+    var novemberFirstSunday=nthSunday(parts.year,11,1);
+    var key=(parts.month*1000000)+(parts.day*10000)+(parts.hour*100)+parts.minute;
+    var startKey=(3*1000000)+(marchSecondSunday*10000)+(2*100);
+    var endKey=(11*1000000)+(novemberFirstSunday*10000)+(2*100);
+    return key>=startKey&&key<endKey?4:5;
+}
+
+function timestampFromParts(parts){
+    return Date.UTC(
+        parts.year,
+        parts.month-1,
+        parts.day,
+        parts.hour||0,
+        parts.minute||0,
+        0,
+        0
+    )+(newYorkOffsetHours(parts)*60*60*1000);
+}
+
+function dateKey(parts){
+    return (parts.year*10000)+(parts.month*100)+parts.day;
+}
+
+function addDaysToParts(parts,days){
+    var date=new Date(Date.UTC(parts.year,parts.month-1,parts.day+days));
+    return {
+        year:date.getUTCFullYear(),
+        month:date.getUTCMonth()+1,
+        day:date.getUTCDate(),
+        hour:parts.hour||0,
+        minute:parts.minute||0
+    };
+}
+
+function parseEventDateTime(value){
+    var text=oneLine(value);
+    var dates=[];
+    var dateRegex=/(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/20\d{2}|(?:January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*20\d{2}|\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*,?\s*20\d{2})/ig;
+    var timeRegex=/(\d{1,2}(?::\d{2})?\s*(?:am|pm))/ig;
+    var times=[];
+    var match;
+    var firstDate;
+    var secondDate;
+    var startClock;
+    var endClock;
+    var startParts;
+    var endParts;
+    var allDay;
+    var startTs;
+    var endTs;
+    var timeLabel="";
+
+    while((match=dateRegex.exec(text))!==null){
+        dates.push(parseDatePart(match[1]));
+    }
+    while((match=timeRegex.exec(text))!==null){
+        times.push(parseClock(match[1]));
+    }
+
+    firstDate=dates[0]||parseDatePart(text);
+    if(!firstDate){
+        return null;
+    }
+    secondDate=dates[1]||firstDate;
+    startClock=times[0]||null;
+    endClock=times[1]||null;
+    allDay=!startClock;
+
+    startParts={
+        year:firstDate.year,
+        month:firstDate.month,
+        day:firstDate.day,
+        hour:startClock?startClock.hour:0,
+        minute:startClock?startClock.minute:0
+    };
+
+    if(endClock){
+        endParts={
+            year:secondDate.year,
+            month:secondDate.month,
+            day:secondDate.day,
+            hour:endClock.hour,
+            minute:endClock.minute
+        };
+        if(timestampFromParts(endParts)<=timestampFromParts(startParts)){
+            endParts=addDaysToParts(endParts,1);
+        }
+    } else if(startClock){
+        endParts={
+            year:secondDate.year,
+            month:secondDate.month,
+            day:secondDate.day,
+            hour:startClock.hour+1,
+            minute:startClock.minute
+        };
+        if(endParts.hour>=24){
+            endParts.hour-=24;
+            endParts=addDaysToParts(endParts,1);
+        }
+    } else {
+        endParts={
+            year:secondDate.year,
+            month:secondDate.month,
+            day:secondDate.day,
+            hour:23,
+            minute:59
+        };
+    }
+
+    startTs=timestampFromParts(startParts);
+    endTs=timestampFromParts(endParts);
+
+    if(startClock){
+        timeLabel=startClock.label;
+        if(endClock){
+            timeLabel+=" - "+endClock.label;
+        }
+    }
+
+    return {
+        startTs:startTs,
+        endTs:endTs,
+        startParts:startParts,
+        endParts:endParts,
+        allDay:allDay,
+        time:timeLabel,
+        date:{
+            year:firstDate.year,
+            month:monthName(firstDate.month),
+            monthNumber:firstDate.month,
+            day:firstDate.day,
+            weekday:weekdayNameFromYmd(firstDate.year,firstDate.month,firstDate.day),
+            label:weekdayNameFromYmd(firstDate.year,firstDate.month,firstDate.day)+", "+monthName(firstDate.month)+" "+firstDate.day+", "+firstDate.year
+        }
+    };
+}
+
+function parseYesNo(text,label){
+    var expression=new RegExp(label+"\\s*:\\s*(yes|no|on|off|true|false)","i");
+    var match=cleanText(text).match(expression);
+    if(!match){
+        return null;
+    }
+    return /yes|on|true/i.test(match[1]);
+}
+
+function parseLabeledValue(text,label){
+    var labels=
+        "Event\\s*Title|Date|Time|Homepage|Upcoming|Featured|Location";
+
+    var expression=
+        new RegExp(
+            label+
+            "\\s*:\\s*(.*?)"+
+            "(?=(?:"+labels+")\\s*:|$)",
+            "i"
+        );
+
+    var match=
+        oneLine(text).match(expression);
+
+    return match?
+        oneLine(match[1]):
+        "";
+}
+    
+function parsePlacement(text){
+    var value=normalized(text);
+    var placement={
+        homepage:false,
+        upcoming:false,
+        featured:false,
+        recognized:false
+    };
+    var explicit;
+
+    if(/\bmajor event\b/.test(value)){
+        placement.homepage=true;
+        placement.upcoming=true;
+        placement.featured=true;
+        placement.recognized=true;
+    } else if(/\bregular event\b/.test(value)||/\bupcoming only\b/.test(value)){
+        placement.upcoming=true;
+        placement.recognized=true;
+    } else if(/\bhomepage only\b/.test(value)){
+        placement.homepage=true;
+        placement.recognized=true;
+    } else if(/\bstandalone\b/.test(value)){
+        placement.recognized=true;
+    }
+
+    explicit=parseYesNo(text,"Homepage");
+    if(explicit!==null){
+        placement.homepage=explicit;
+        placement.recognized=true;
+    }
+
+    explicit=parseYesNo(text,"Upcoming");
+    if(explicit!==null){
+        placement.upcoming=explicit;
+        placement.recognized=true;
+    }
+
+    explicit=parseYesNo(text,"Featured");
+    if(explicit!==null){
+        placement.featured=explicit;
+        placement.recognized=true;
+    }
+
+    /*
+     * A featured event always belongs at the top of both
+     * the Upcoming page and the homepage, even if one of
+     * those two lines was accidentally set to No.
+     */
+    if(placement.featured){
+        placement.homepage=true;
+        placement.upcoming=true;
+    }
+
+    return placement;
+}
+
+function closestBySelector(node,selector){
+    while(node&&node.nodeType===1){
+        if(node.matches&&node.matches(selector)){
+            return node;
+        }
+        node=node.parentNode;
+    }
+    return null;
+}
+
+function isNavigationAnchor(anchor){
+    return !!closestBySelector(
+        anchor,
+        "#header,.site-nav-wrapper,#co_menu_container,#co_menu_container_wrapper,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb,.mobile-menu-bottom-links,.custom-mobile-menu-links"
+    );
+}
+
+function meaningfulTitle(anchor){
+    var text=oneLine(anchor.textContent||anchor.innerText||"");
+    if(!text||/^(read more|more|view|view event|details|learn more)$/i.test(text)){
+        return "";
+    }
+    return text;
+}
+
+function eventArticlePaths(container){
+    var paths={};
+
+    qsa(
+        'a[href*="/templates/articlecco_cdo/aid/"]',
+        container
+    ).forEach(function(link){
+        var href;
+        var path;
+
+        if(isNavigationAnchor(link)){
+            return;
+        }
+
+        href=absoluteUrl(
+            link.getAttribute("href")||""
+        );
+        path=canonicalPath(href);
+
+        if(
+            !path||
+            path.indexOf("/aid/"+CFG.parentAid+"/")>-1||
+            /past-events\.htm$/i.test(path)
+        ){
+            return;
+        }
+
+        paths[path]=true;
+    });
+
+    return Object.keys(paths);
+}
+
+function findEventContainer(anchor){
+    var node=anchor;
+    var depth=0;
+    var text;
+    var placement;
+    var dateInfo;
+    var paths;
+    var anchorPath=canonicalPath(
+        absoluteUrl(
+            anchor.getAttribute("href")||""
+        )
+    );
+
+    while(node&&depth<10){
+        node=node.parentNode;
+        depth++;
+
+        if(
+            !node||
+            node.nodeType!==1||
+            /^(BODY|HTML)$/i.test(
+                node.tagName||""
+            )
+        ){
+            break;
+        }
+
+        if(
+            closestBySelector(
+                node,
+                "#header,.site-nav-wrapper,#co_menu_container,footer,.footer,.site-footer,.breadcrumbs,.breadcrumb"
+            )
+        ){
+            return null;
+        }
+
+        text=readableNodeText(node);
+
+        if(text.length>3000){
+            continue;
+        }
+
+        placement=parsePlacement(text);
+        dateInfo=parseEventDateTime(text);
+
+        if(!placement.recognized||!dateInfo){
+            continue;
+        }
+
+        /*
+         * A valid event block may contain more than one link
+         * (for example, a linked title and linked image), but
+         * every article link inside that block must point to the
+         * SAME event page.
+         *
+         * This prevents a neighboring native child-page link,
+         * such as Tisha B'Av, from inheriting the date and Index
+         * Synopsis of a newly created Sample event farther down
+         * in the same ChabadOne index section.
+         */
+        paths=eventArticlePaths(node);
+
+        if(
+            paths.length===1&&
+            paths[0]===anchorPath
+        ){
+            return {
+                node:node,
+                text:text,
+                placement:placement,
+                dateInfo:dateInfo
+            };
+        }
+    }
+
+    return null;
+}
+
+function parseIndexEvents(doc,keepContainers){
+    var anchors=qsa('a[href*="/templates/articlecco_cdo/aid/"]',doc);
+    var events=[];
+    var seen={};
+    var index;
+
+    for(index=0;index<anchors.length;index++){
+        var anchor=anchors[index];
+        var title;
+        var href;
+        var path;
+        var match;
+        var container;
+        var text;
+        var placement;
+        var dateInfo;
+        var location;
+        var eventItem;
+
+        if(isNavigationAnchor(anchor)){
+            continue;
+        }
+
+        title=meaningfulTitle(anchor);
+        href=absoluteUrl(anchor.getAttribute("href")||"");
+        path=canonicalPath(href);
+
+        if(!title||!href||seen[path]){
+            continue;
+        }
+
+        if(
+            path.indexOf("/aid/"+CFG.parentAid+"/")>-1||
+            /past-events\.htm$/i.test(path)
+        ){
+            continue;
+        }
+
+        match=findEventContainer(anchor);
+
+        if(!match){
+            continue;
+        }
+
+        container=match.node;
+        text=match.text;
+        placement=match.placement;
+        dateInfo=match.dateInfo;
+
+        title=
+            parseLabeledValue(
+                text,
+                "Event\\s*Title"
+            )||
+            title;
+
+        location=
+            parseLabeledValue(
+                text,
+                "Location"
+            )||
+            CFG.defaultLocation;
+
+        eventItem={
+            id:"page-"+slug(title)+"-"+dateInfo.startTs,
+            title:title,
+            url:href,
+            startTs:dateInfo.startTs,
+            endTs:dateInfo.endTs,
+            startParts:dateInfo.startParts,
+            endParts:dateInfo.endParts,
+            allDay:dateInfo.allDay,
+            time:dateInfo.time,
+            date:dateInfo.date,
+            location:{
+                text:location,
+                name:location.split(",")[0]||location
+            },
+            homepage:placement.homepage,
+            upcoming:placement.upcoming,
+            featured:placement.featured,
+            recurring:false,
+            sourceType:"page",
+            sourceContainer:keepContainers?container:null
+        };
+
+        seen[path]=true;
+        events.push(eventItem);
+    }
+
+    events.sort(function(first,second){
+        return first.startTs-second.startTs;
+    });
+
+    return events;
+}
+
+/* ============================================================
+   UPCOMING AT CHABAD EVENT REGISTRY — v9.4.0
+   ============================================================ */
+
+function metaContent(doc,selector){
+    var node=qs(selector,doc);
+    return node?oneLine(node.getAttribute("content")||""):"";
+}
+
+function registryTargetHeadline(doc,fallback){
+    var title=
+        metaContent(doc,'meta[property="og:title"]')||
+        metaContent(doc,'meta[name="title"]')||
+        oneLine(doc.title||"");
+    var parts;
+    var index;
+
+    title=title.replace(/\s+-\s+Chabad of Fort Lee\s*$/i,"");
+    parts=title.split(/\s+-\s+/);
+
+    for(index=1;index<parts.length;index++){
+        if(parseEventDateTime(parts.slice(index).join(" - "))){
+            return oneLine(parts.slice(0,index).join(" - "))||oneLine(fallback||"");
+        }
+    }
+
+    return oneLine(title||fallback||"");
+}
+
+function parseRegistryTargetPage(html,candidate){
+    var doc=new DOMParser().parseFromString(html,"text/html");
+    var synopsis=metaContent(doc,'meta[name="description"]');
+    var titleMeta=
+        metaContent(doc,'meta[property="og:title"]')||
+        metaContent(doc,'meta[name="title"]')||
+        oneLine(doc.title||"");
+    var text=oneLine(titleMeta+" "+synopsis);
+    var placement=parsePlacement(text);
+    var dateInfo=parseEventDateTime(text);
+    var eventTitle;
+    var location;
+    var canonical;
+    var url;
+
+    /*
+     * A registry link is not enough by itself. The target page
+     * must still contain recognized placement metadata AND a date.
+     */
+    if(!placement.recognized||!dateInfo){
+        return null;
+    }
+
+    eventTitle=
+        parseLabeledValue(synopsis,"Event\\s*Title")||
+        registryTargetHeadline(doc,candidate.title);
+
+    if(!eventTitle){
+        return null;
+    }
+
+    location=parseLabeledValue(synopsis,"Location")||CFG.defaultLocation;
+    canonical=qs('link[rel="canonical"]',doc);
+
+    url=
+        metaContent(doc,'meta[property="og:url"]')||
+        (canonical?canonical.getAttribute("href")||"":"")||
+        candidate.url;
+
+    return {
+        id:"registry-"+slug(eventTitle)+"-"+dateInfo.startTs,
+        title:eventTitle,
+        url:absoluteUrl(url),
+        startTs:dateInfo.startTs,
+        endTs:dateInfo.endTs,
+        startParts:dateInfo.startParts,
+        endParts:dateInfo.endParts,
+        allDay:dateInfo.allDay,
+        time:dateInfo.time,
+        date:dateInfo.date,
+        location:{
+            text:location,
+            name:location.split(",")[0]||location
+        },
+        homepage:placement.homepage,
+        upcoming:placement.upcoming,
+        featured:placement.featured,
+        recurring:false,
+        sourceType:"registry-target",
+        sourceContainer:null
+    };
+}
+
+function mergeEventLists(){
+    var out=[];
+    var positions={};
+
+    [].slice.call(arguments).forEach(function(list){
+        (list||[]).forEach(function(item){
+            var key=canonicalPath(item.url)+"|"+String(item.startTs||"");
+            var old;
+
+            if(typeof positions[key]==="number"){
+                old=out[positions[key]];
+                old.homepage=!!(old.homepage||item.homepage);
+                old.upcoming=!!(old.upcoming||item.upcoming);
+                old.featured=!!(old.featured||item.featured);
+
+                if(item.sourceType==="registry-target"){
+                    old.title=item.title||old.title;
+                    old.location=item.location||old.location;
+                    old.url=item.url||old.url;
+                    old.sourceType="registry-target";
+                }
+                return;
+            }
+
+            positions[key]=out.length;
+            out.push(item);
+        });
+    });
+
+    out.sort(function(first,second){
+        return first.startTs-second.startTs;
+    });
+
+    return out;
+}
+
+function normalizedHost(host){
+    return String(host||"").toLowerCase().replace(/^www\./,"");
+}
+
+function registryUrlInfo(raw){
+    var anchor;
+    var href;
+
+    if(!raw||/^\s*(?:#|javascript:|mailto:|tel:)/i.test(raw)){
+        return null;
+    }
+
+    anchor=d.createElement("a");
+    anchor.href=raw;
+
+    if(
+        normalizedHost(anchor.hostname)!==
+        normalizedHost(window.location.hostname)
+    ){
+        return null;
+    }
+
+    if(
+        /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|docx?|xlsx?|zip|mp3|mp4|mov)$/i
+        .test(anchor.pathname||"")
+    ){
+        return null;
+    }
+
+    href=
+        window.location.protocol+"//"+
+        window.location.host+
+        (anchor.pathname||"/")+
+        (anchor.search||"");
+
+    return {
+        href:href,
+        path:canonicalPath(href)
+    };
+}
+
+function registryCandidates(doc,directEvents){
+    var output=[];
+    var seen={};
+    var alreadyParsed={};
+    var sourcePath=canonicalPath(CFG.sourceUrl);
+    var upcomingPath=canonicalPath(CFG.upcomingUrl);
+    var pastPath=canonicalPath(CFG.pastUrl);
+    var loxPath=canonicalPath(CFG.lox.url);
+    var menuRoot;
+    var contentRoot;
+
+    (directEvents||[]).forEach(function(eventItem){
+        alreadyParsed[canonicalPath(eventItem.url)]=true;
+    });
+
+    function add(link,authoritative){
+        var info=registryUrlInfo(link.getAttribute("href")||"");
+        var title;
+
+        if(!info){
+            return;
+        }
+
+        if(
+            !info.path||
+            info.path===sourcePath||
+            info.path===upcomingPath||
+            info.path===pastPath||
+            info.path===loxPath||
+            alreadyParsed[info.path]||
+            seen[info.path]
+        ){
+            return;
+        }
+
+        /*
+         * Direct level-2 children under Upcoming at Chabad are
+         * authoritative registry entries regardless of URL shape.
+         * Content-area fallback links must look like ChabadOne pages.
+         */
+        if(
+            !authoritative&&
+            !(
+                /\/aid\/\d+(?:\/|$)/i.test(info.path)||
+                /^\/\d{4,}(?:\/|$)/.test(info.path)||
+                /\/templates\/[^\/]+_cdo\//i.test(info.path)
+            )
+        ){
+            return;
+        }
+
+        title=
+            meaningfulTitle(link)||
+            oneLine(link.getAttribute("title")||"");
+
+        seen[info.path]=true;
+
+        output.push({
+            url:info.href,
+            path:info.path,
+            title:title
+        });
+    }
+
+    /*
+     * PRIMARY SOURCE:
+     * only direct level-2 children of Upcoming at Chabad.
+     * This intentionally excludes level-3 descendants of Past Events.
+     */
+    menuRoot=qs(
+        'td.co_menu_item[aid="'+CFG.parentAid+'"]',
+        doc
+    );
+
+    if(menuRoot){
+        qsa(
+            '.co_submenu_container a[data-menu-level="2"][href]',
+            menuRoot
+        ).forEach(function(link){
+            add(link,true);
+        });
+    }
+
+    /*
+     * FALLBACK:
+     * some templates may expose a New Link only in the native
+     * Upcoming page content. This still scans ONLY that page.
+     */
+    contentRoot=qs("#ContentBody",doc)||qs("#co_body_container",doc);
+
+    if(contentRoot){
+        qsa("a[href]",contentRoot).forEach(function(link){
+            if(!isNavigationAnchor(link)){
+                add(link,false);
+            }
+        });
+    }
+
+    if(CFG.registry.maxTargets&&output.length>CFG.registry.maxTargets){
+        output=output.slice(0,CFG.registry.maxTargets);
+    }
+
+    window.CFLE_EVENTS_REGISTRY_DEBUG=
+        window.CFLE_EVENTS_REGISTRY_DEBUG||{};
+
+    window.CFLE_EVENTS_REGISTRY_DEBUG.candidates=output.slice(0);
+
+    return output;
+}
+
+function parseRegistrySourceHtml(html){
+    var doc=
+        new DOMParser()
+        .parseFromString(
+            html,
+            "text/html"
+        );
+
+    var directEvents=
+        parseIndexEvents(
+            doc,
+            false
+        );
+
+    return {
+        events:directEvents,
+        candidates:
+            registryCandidates(
+                doc,
+                directEvents
+            )
+    };
+}
+
+function isTransientRequestFailure(status){
+    return (
+        !status||
+        status===408||
+        status===429||
+        status>=500
+    );
+}
+
+function requestRegistryTargets(candidates,onEvent,onDone){
+    var list=(candidates||[]).slice(0);
+    var next=0;
+    var active=0;
+    var finished=0;
+    var failures=0;
+
+    window.CFLE_EVENTS_REGISTRY_DEBUG=
+        window.CFLE_EVENTS_REGISTRY_DEBUG||{};
+
+    window.CFLE_EVENTS_REGISTRY_DEBUG.targetFetchCount=0;
+    window.CFLE_EVENTS_REGISTRY_DEBUG.targets=[];
+    window.CFLE_EVENTS_REGISTRY_DEBUG.events=[];
+
+    if(!CFG.registry.enabled||!list.length){
+        onDone(null);
+        return;
+    }
+
+    function pump(){
+        while(
+            active<CFG.registry.concurrency&&
+            next<list.length
+        ){
+            scan(
+                list[next++]
+            );
+        }
+
+        if(finished===list.length){
+            onDone(
+                failures?
+                new Error(
+                    String(failures)+
+                    " registry target request(s) failed"
+                ):
+                null
+            );
+        }
+    }
+
+    function scan(candidate){
+        var started=Date.now();
+        var attempts=0;
+        var finishedCandidate=false;
+
+        active++;
+
+        function finish(ok,request){
+            var eventItem;
+
+            if(finishedCandidate){
+                return;
+            }
+
+            finishedCandidate=true;
+            active--;
+            finished++;
+
+            window.CFLE_EVENTS_REGISTRY_DEBUG.targets.push({
+                url:candidate.url,
+                ok:!!ok,
+                status:request?request.status||0:0,
+                milliseconds:Date.now()-started,
+                attempts:attempts
+            });
+
+            if(
+                ok&&
+                request&&
+                request.responseText
+            ){
+                try{
+                    eventItem=
+                        parseRegistryTargetPage(
+                            request.responseText,
+                            candidate
+                        );
+
+                    if(eventItem){
+                        window.CFLE_EVENTS_REGISTRY_DEBUG.events.push(
+                            eventItem
+                        );
+
+                        onEvent(
+                            eventItem
+                        );
+                    }
+
+                } catch(error){
+
+                    failures++;
+                }
+
+            } else {
+
+                failures++;
+            }
+
+            pump();
+        }
+
+        function sendAttempt(){
+            var xhr=
+                new XMLHttpRequest();
+
+            var settled=false;
+
+            var url=
+                candidate.url+
+                (
+                    candidate.url.indexOf("?")>-1?
+                    "&":
+                    "?"
+                )+
+                "cfle_event_registry="+
+                Date.now();
+
+            attempts++;
+
+            window.CFLE_EVENTS_REGISTRY_DEBUG.targetFetchCount++;
+
+            xhr.open(
+                "GET",
+                url,
+                true
+            );
+
+            xhr.timeout=
+                CFG.registry.requestTimeoutMs;
+
+            function fail(){
+                var status=
+                    xhr.status||0;
+
+                if(
+                    settled||
+                    finishedCandidate
+                ){
+                    return;
+                }
+
+                settled=true;
+
+                if(
+                    attempts<=CFG.retryCount&&
+                    isTransientRequestFailure(
+                        status
+                    )
+                ){
+                    window.setTimeout(
+                        sendAttempt,
+                        CFG.retryDelayMs
+                    );
+
+                    return;
+                }
+
+                finish(
+                    false,
+                    xhr
+                );
+            }
+
+            xhr.onreadystatechange=function(){
+
+                if(
+                    xhr.readyState!==4||
+                    settled||
+                    finishedCandidate
+                ){
+                    return;
+                }
+
+                if(
+                    xhr.status>=200&&
+                    xhr.status<300
+                ){
+                    settled=true;
+
+                    finish(
+                        true,
+                        xhr
+                    );
+
+                } else {
+
+                    fail();
+                }
+            };
+
+            xhr.onerror=fail;
+            xhr.ontimeout=fail;
+
+            xhr.send(null);
+        }
+
+        sendAttempt();
+    }
+
+    pump();
+}
+    
+function getNewYorkNowParts(){
+    var now=new Date();
+    var parts;
+    var output={};
+    var index;
+
+    try{
+        if(!newYorkFormatter){
+            newYorkFormatter=
+                new Intl.DateTimeFormat(
+                    "en-US",
+                    {
+                        timeZone:"America/New_York",
+                        year:"numeric",
+                        month:"numeric",
+                        day:"numeric",
+                        hour:"numeric",
+                        minute:"numeric",
+                        hour12:false
+                    }
+                );
+        }
+
+        parts=
+            newYorkFormatter
+            .formatToParts(now);
+
+        for(index=0;index<parts.length;index++){
+            if(parts[index].type!=="literal"){
+                output[parts[index].type]=
+                    parseInt(
+                        parts[index].value,
+                        10
+                    );
+            }
+        }
+
+        return {
+            year:output.year,
+            month:output.month,
+            day:output.day,
+            hour:output.hour===24?0:output.hour,
+            minute:output.minute||0
+        };
+
+    } catch(error){
+
+        return {
+            year:now.getFullYear(),
+            month:now.getMonth()+1,
+            day:now.getDate(),
+            hour:now.getHours(),
+            minute:now.getMinutes()
+        };
+    }
+}
+
+function calendarFeedRequestUrl(){
+    var cacheWindow=Math.floor(Date.now()/300000);
+
+    return CFG.lox.calendarFeedUrl+
+        (CFG.lox.calendarFeedUrl.indexOf("?")>-1?"&":"?")+
+        "cfle_lox_calendar="+
+        cacheWindow;
+}
+
+function calendarFeedTime(item){
+    var nodes=qsa(
+        ".event_options.list_info div",
+        item
+    );
+    var index;
+    var text;
+
+    for(index=nodes.length-1;index>=0;index--){
+        text=oneLine(
+            nodes[index].textContent||
+            nodes[index].innerText||
+            ""
+        );
+
+        if(/\d{1,2}(?::\d{2})?\s*(?:am|pm)/i.test(text)){
+            return text;
+        }
+    }
+
+    return oneLine(
+        item.getAttribute("title")||
+        ""
+    );
+}
+
+function parseCalendarLoxHtml(html){
+    var parser=new DOMParser();
+    var doc=parser.parseFromString(html,"text/html");
+    var collections=qsa(
+        ".category_collection.list_item",
+        doc
+    );
+    var matches=[];
+
+    /*
+     * ChabadOne places the Gregorian date in the surrounding
+     * category_collection, while each individual event lives
+     * inside its own category_item.  Read the date from the
+     * complete collection text instead of depending on one
+     * fragile date-element selector.
+     */
+    collections.forEach(function(collection){
+        var collectionText=oneLine(
+            collection.textContent||
+            collection.innerText||
+            ""
+        );
+        var dateNode=qs(
+            ".date_stamp .date",
+            collection
+        );
+        var datePart=parseDatePart(
+            dateNode?
+                (dateNode.textContent||dateNode.innerText||""):
+                collectionText
+        );
+        var items;
+
+        if(!datePart){
+            datePart=parseDatePart(collectionText);
+        }
+
+        if(!datePart){
+            return;
+        }
+
+        items=qsa(
+            ".category_item",
+            collection
+        );
+
+        items.forEach(function(item){
+            var titleNode=
+                qs(".event_wrapper .event_name",item)||
+                qs(".event_name",item);
+            var titleText=oneLine(
+                titleNode?
+                    (titleNode.textContent||titleNode.innerText||""):
+                    ""
+            );
+            var timeText=calendarFeedTime(item);
+            var dateInfo;
+            var locationLink;
+            var locationText;
+            var dateSource;
+
+            if(normalized(titleText)!==normalized(CFG.lox.title)){
+                return;
+            }
+
+            dateSource=
+                monthName(datePart.month)+
+                " "+
+                datePart.day+
+                " "+
+                datePart.year+
+                (timeText?", "+timeText:"");
+
+            dateInfo=parseEventDateTime(dateSource);
+
+            if(!dateInfo||!isUpcoming({endTs:dateInfo.endTs})){
+                return;
+            }
+
+            locationLink=qs(
+                '.event_info a[href*="maps.google.com"],'+
+                '.event_info a[href*="google.com/maps"]',
+                item
+            );
+
+            locationText=locationLink?
+                oneLine(
+                    locationLink.textContent||
+                    locationLink.innerText||
+                    ""
+                ):
+                CFG.defaultLocation;
+
+            matches.push({
+                id:"calendar-lox-learn-"+dateInfo.startTs,
+                title:CFG.lox.title,
+                url:absoluteUrl(CFG.lox.url),
+                startTs:dateInfo.startTs,
+                endTs:dateInfo.endTs,
+                startParts:dateInfo.startParts,
+                endParts:dateInfo.endParts,
+                allDay:dateInfo.allDay,
+                time:dateInfo.time,
+                date:dateInfo.date,
+                location:{
+                    text:locationText||CFG.defaultLocation,
+                    name:"Chabad of Fort Lee"
+                },
+                homepage:CFG.lox.homepage,
+                upcoming:CFG.lox.upcoming,
+                featured:false,
+                recurring:true,
+                sourceType:"calendar-lox",
+                sourceContainer:null
+            });
+        });
+    });
+
+    matches.sort(function(first,second){
+        return first.startTs-second.startTs;
+    });
+
+    return matches.length?matches[0]:null;
+}
+
+function requestCalendarLox(callback){
+    var url;
+    var completed=false;
+    var attempts=0;
+
+    function finish(error,eventItem){
+        if(completed){
+            return;
+        }
+
+        completed=true;
+
+        callback(
+            error,
+            eventItem
+        );
+    }
+
+    if(!CFG.lox.enabled){
+        finish(
+            null,
+            null
+        );
+
+        return;
+    }
+
+    url=
+        calendarFeedRequestUrl();
+
+    function sendAttempt(){
+        var request=
+            new XMLHttpRequest();
+
+        var settled=false;
+
+        attempts++;
+
+        request.open(
+            "GET",
+            url,
+            true
+        );
+
+        request.timeout=
+            CFG.requestTimeoutMs;
+
+        function fail(error){
+            var status=
+                request.status||0;
+
+            if(
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            settled=true;
+
+            if(
+                attempts<=CFG.retryCount&&
+                isTransientRequestFailure(
+                    status
+                )
+            ){
+                window.setTimeout(
+                    sendAttempt,
+                    CFG.retryDelayMs
+                );
+
+                return;
+            }
+
+            finish(
+                error,
+                null
+            );
+        }
+
+        request.onreadystatechange=function(){
+            var eventItem;
+
+            if(
+                request.readyState!==4||
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            if(
+                request.status>=200&&
+                request.status<300
+            ){
+                settled=true;
+
+                try{
+                    eventItem=
+                        parseCalendarLoxHtml(
+                            request.responseText
+                        );
+
+                    finish(
+                        null,
+                        eventItem
+                    );
+
+                } catch(error){
+
+                    finish(
+                        error,
+                        null
+                    );
+                }
+
+                return;
+            }
+
+            fail(
+                new Error(
+                    "Calendar feed request failed: "+
+                    String(
+                        request.status||
+                        "unknown"
+                    )
+                )
+            );
+        };
+
+        request.onerror=function(){
+            fail(
+                new Error(
+                    "Calendar feed network error"
+                )
+            );
+        };
+
+        request.ontimeout=function(){
+            fail(
+                new Error(
+                    "Calendar feed timed out"
+                )
+            );
+        };
+
+        request.send(null);
+    }
+
+    sendAttempt();
+}
+
+function addSpecialEvents(events){
+    var lox=state.calendarLox;
+    var loxPath=canonicalPath(CFG.lox.url);
+    var output=(events||[]).filter(function(eventItem){
+        return !(
+            canonicalPath(eventItem.url)===loxPath||
+            normalized(eventItem.title)===normalized(CFG.lox.title)
+        );
+    });
+
+    /*
+     * Lox & Learn is supplied only by the ChabadOne Calendar.
+     * Any page-driven duplicate is removed before the nearest
+     * future Calendar occurrence is added.
+     */
+    if(lox&&isUpcoming(lox)){
+        output.push(lox);
+    }
+
+    output.sort(function(first,second){
+        return first.startTs-second.startTs;
+    });
+
+    return output;
+}
+
+function serializeEvents(events){
+    return (events||[]).map(function(eventItem){
+        return {
+            id:eventItem.id,
+            title:eventItem.title,
+            url:eventItem.url,
+            startTs:eventItem.startTs,
+            endTs:eventItem.endTs,
+            startParts:eventItem.startParts,
+            endParts:eventItem.endParts,
+            allDay:eventItem.allDay,
+            time:eventItem.time,
+            date:eventItem.date,
+            location:eventItem.location,
+            homepage:!!eventItem.homepage,
+            upcoming:!!eventItem.upcoming,
+            featured:!!eventItem.featured,
+            recurring:!!eventItem.recurring,
+            sourceType:eventItem.sourceType||(
+                normalized(eventItem.title)===normalized(CFG.lox.title)?
+                "calendar-lox":
+                "page"
+            )
+        };
+    });
+}
+
+function readCache(){
+    try{
+        var raw=
+            window.localStorage.getItem(
+                CFG.cacheKey
+            );
+
+        var saved=
+            raw?
+            JSON.parse(raw):
+            null;
+
+        if(
+            saved&&
+            saved.buildId===CFG.buildId&&
+            saved.events&&
+            Object.prototype.toString.call(
+                saved.events
+            )==="[object Array]"
+        ){
+            lastCachePayload=
+                JSON.stringify(
+                    saved.events
+                );
+
+            return saved.events;
+        }
+
+    } catch(error){
+    }
+
+    lastCachePayload=null;
+
+    return [];
+}
+
+function writeCache(events){
+    try{
+        var serialized=
+            serializeEvents(
+                events
+            );
+
+        var payload=
+            JSON.stringify(
+                serialized
+            );
+
+        /*
+         * If the fresh result is exactly what was already
+         * cached, there is nothing useful to write again.
+         */
+        if(
+            payload===
+            lastCachePayload
+        ){
+            return;
+        }
+
+        window.localStorage.setItem(
+            CFG.cacheKey,
+            JSON.stringify({
+                buildId:CFG.buildId,
+                time:Date.now(),
+                events:serialized
+            })
+        );
+
+        lastCachePayload=
+            payload;
+
+    } catch(error){
+    }
+}
+
+function requestSource(callback){
+    var completed=false;
+    var started=Date.now();
+    var attempts=0;
+    var lastStatus=0;
+
+    function finish(error,html){
+        if(completed){
+            return;
+        }
+
+        completed=true;
+
+        window.CFLE_EVENTS_REGISTRY_DEBUG=
+            window.CFLE_EVENTS_REGISTRY_DEBUG||{};
+
+        window.CFLE_EVENTS_REGISTRY_DEBUG.source={
+            ok:!error,
+            status:lastStatus,
+            milliseconds:Date.now()-started,
+            attempts:attempts
+        };
+
+        callback(
+            error,
+            html
+        );
+    }
+
+    function sendAttempt(){
+        var request=
+            new XMLHttpRequest();
+
+        var settled=false;
+
+        /*
+         * Keep the unique timestamp.
+         * This deliberately asks ChabadOne for fresh data
+         * after an event is created or edited.
+         */
+        var url=
+            CFG.sourceUrl+
+            (
+                CFG.sourceUrl.indexOf("?")>-1?
+                "&":
+                "?"
+            )+
+            "cfle_events_registry="+
+            Date.now();
+
+        attempts++;
+
+        request.open(
+            "GET",
+            url,
+            true
+        );
+
+        request.timeout=
+            CFG.requestTimeoutMs;
+
+        function fail(error){
+            var status=
+                request.status||0;
+
+            if(
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            settled=true;
+            lastStatus=status;
+
+            if(
+                attempts<=CFG.retryCount&&
+                isTransientRequestFailure(
+                    status
+                )
+            ){
+                window.setTimeout(
+                    sendAttempt,
+                    CFG.retryDelayMs
+                );
+
+                return;
+            }
+
+            finish(
+                error,
+                ""
+            );
+        }
+
+        request.onreadystatechange=function(){
+
+            if(
+                request.readyState!==4||
+                settled||
+                completed
+            ){
+                return;
+            }
+
+            lastStatus=
+                request.status||0;
+
+            if(
+                request.status>=200&&
+                request.status<300
+            ){
+                settled=true;
+
+                finish(
+                    null,
+                    request.responseText
+                );
+
+            } else {
+
+                fail(
+                    new Error(
+                        "Upcoming-page request failed: "+
+                        String(
+                            request.status||
+                            "unknown"
+                        )
+                    )
+                );
+            }
+        };
+
+        request.onerror=function(){
+            fail(
+                new Error(
+                    "Upcoming-page network error"
+                )
+            );
+        };
+
+        request.ontimeout=function(){
+            fail(
+                new Error(
+                    "Upcoming-page request timed out"
+                )
+            );
+        };
+
+        request.send(null);
+    }
+
+    sendAttempt();
+}
+    
+function nowTs(){
+    return Date.now();
+}
+
+function isUpcoming(eventItem){
+    return eventItem.endTs>=nowTs();
+}
+
+function activeUpcomingEvents(){
+    var now=
+        nowTs();
+
+    return state.events.filter(function(eventItem){
+
+        return (
+            eventItem.upcoming||
+            eventItem.featured
+        )&&
+        eventItem.endTs>=now;
+    });
+}
+
+function pastEvents(){
+    var now=
+        nowTs();
+
+    return state.events
+        .filter(function(eventItem){
+
+            return (
+                !eventItem.recurring&&
+                (
+                    eventItem.upcoming||
+                    eventItem.homepage||
+                    eventItem.featured
+                )&&
+                eventItem.endTs<now
+            );
+        })
+        .sort(function(first,second){
+
+            return (
+                second.startTs-
+                first.startTs
+            );
+        });
+}
+
+function isAppleDevice(){
+    return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent||"");
+}
+
+function mapsUrl(location){
+    var text=location&&location.text?location.text:"";
+    var encoded=encodeURIComponent(text);
+    if(/Android/i.test(navigator.userAgent||"")){
+        return "geo:0,0?q="+encoded;
+    }
+    if(isAppleDevice()){
+        return "https://maps.apple.com/?q="+encoded;
+    }
+    return "https://www.google.com/maps/search/?api=1&query="+encoded;
+}
+
+function compactParts(parts){
+    return parts.year+pad(parts.month)+pad(parts.day)+"T"+pad(parts.hour||0)+pad(parts.minute||0)+"00";
+}
+
+function allDayCompact(parts){
+    return parts.year+pad(parts.month)+pad(parts.day);
+}
+
+function googleCalendarUrl(eventItem){
+    var dates;
+    var endAllDay;
+    if(eventItem.allDay){
+        endAllDay=addDaysToParts(eventItem.endParts,1);
+        dates=allDayCompact(eventItem.startParts)+"/"+allDayCompact(endAllDay);
+    } else {
+        dates=compactParts(eventItem.startParts)+"/"+compactParts(eventItem.endParts);
+    }
+    return "https://calendar.google.com/calendar/render?action=TEMPLATE"+
+        "&text="+encodeURIComponent(eventItem.title)+
+        "&dates="+encodeURIComponent(dates)+
+        "&ctz="+encodeURIComponent("America/New_York")+
+        "&location="+encodeURIComponent(eventItem.location.text||"")+
+        "&details="+encodeURIComponent("More information: "+eventItem.url);
+}
+
+function escapeIcs(value){
+    return String(value||"")
+        .replace(/\\/g,"\\\\")
+        .replace(/\r?\n/g,"\\n")
+        .replace(/,/g,"\\,")
+        .replace(/;/g,"\\;");
+}
+
+function icsText(eventItem){
+    var startLine;
+    var endLine;
+    var endAllDay;
+
+    if(eventItem.allDay){
+        endAllDay=addDaysToParts(eventItem.endParts,1);
+        startLine="DTSTART;VALUE=DATE:"+allDayCompact(eventItem.startParts);
+        endLine="DTEND;VALUE=DATE:"+allDayCompact(endAllDay);
+    } else {
+        startLine="DTSTART;TZID=America/New_York:"+compactParts(eventItem.startParts);
+        endLine="DTEND;TZID=America/New_York:"+compactParts(eventItem.endParts);
+    }
+
+    return "BEGIN:VCALENDAR\r\n"+
+        "VERSION:2.0\r\n"+
+        "PRODID:-//Chabad of Fort Lee//Page Events//EN\r\n"+
+        "CALSCALE:GREGORIAN\r\n"+
+        "METHOD:PUBLISH\r\n"+
+        "BEGIN:VEVENT\r\n"+
+        "UID:"+escapeIcs(eventItem.id)+"@chabadfortlee.com\r\n"+
+        startLine+"\r\n"+
+        endLine+"\r\n"+
+        "SUMMARY:"+escapeIcs(eventItem.title)+"\r\n"+
+        "LOCATION:"+escapeIcs(eventItem.location.text||"")+"\r\n"+
+        "DESCRIPTION:"+escapeIcs("More information: "+eventItem.url)+"\r\n"+
+        "URL:"+escapeIcs(eventItem.url)+"\r\n"+
+        "END:VEVENT\r\n"+
+        "END:VCALENDAR\r\n";
+}
+
+function downloadIcs(eventItem){
+    var blob;
+    var url;
+    var link;
+    try{
+        blob=new Blob([icsText(eventItem)],{type:"text/calendar;charset=utf-8"});
+        url=window.URL.createObjectURL(blob);
+        link=d.createElement("a");
+        link.href=url;
+        link.download=slug(eventItem.title||"event")+".ics";
+        d.body.appendChild(link);
+        link.click();
+        d.body.removeChild(link);
+        window.setTimeout(function(){
+            window.URL.revokeObjectURL(url);
+        },500);
+    } catch(error){
+        window.location.href="data:text/calendar;charset=utf-8,"+encodeURIComponent(icsText(eventItem));
+    }
+}
+
+
+
+function clockIcon(){
+    return '<svg class="cfle-meta-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="2"></circle>'+
+        '<path d="M12 7.4v5.1l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>'+
+        '</svg>';
+}
+
+function locationIcon(){
+    return '<svg class="cfle-meta-svg cfle-pin-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<path d="M12 2.8a7 7 0 0 0-7 7c0 5.15 7 11.4 7 11.4s7-6.25 7-11.4a7 7 0 0 0-7-7z" fill="currentColor"></path>'+
+        '<circle cx="12" cy="9.8" r="2.45" fill="#fff"></circle>'+
+        '</svg>';
+}
+
+function googleIcon(){
+    return '<svg class="cfle-calendar-logo cfle-google-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.23-.2-1.77H12v3.4h5.52c-.11.84-.71 2.11-2.04 2.96l-.02.11 2.96 2.29.2.02c1.84-1.69 2.98-4.18 2.98-7.01z"></path>'+
+        '<path fill="#34A853" d="M12 22c2.69 0 4.95-.89 6.6-2.43l-3.14-2.42c-.84.56-1.96.96-3.46.96-2.63 0-4.87-1.78-5.67-4.24l-.1.01-3.08 2.38-.04.1A9.98 9.98 0 0 0 12 22z"></path>'+
+        '<path fill="#FBBC05" d="M6.33 13.87A6 6 0 0 1 6 12c0-.65.11-1.28.32-1.87l-.01-.13-3.12-2.42-.1.05A10 10 0 0 0 2 12c0 1.57.36 3.05 1.1 4.37l3.23-2.5z"></path>'+
+        '<path fill="#EA4335" d="M12 5.89c1.88 0 3.15.81 3.88 1.49l2.79-2.72C16.96 3.07 14.69 2 12 2a9.98 9.98 0 0 0-8.9 5.63l3.22 2.5C7.13 7.67 9.37 5.89 12 5.89z"></path>'+
+        '</svg>';
+}
+
+function appleIcon(){
+    return '<svg class="cfle-calendar-logo cfle-apple-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<path fill="currentColor" d="M17.05 12.54c-.03-2.67 2.18-3.95 2.28-4.01-1.25-1.83-3.2-2.08-3.89-2.1-1.64-.17-3.23.98-4.07.98-.86 0-2.15-.96-3.55-.93-1.8.03-3.49 1.07-4.42 2.68-1.89 3.28-.48 8.1 1.33 10.75.91 1.3 1.96 2.76 3.36 2.71 1.37-.06 1.88-.87 3.54-.87 1.64 0 2.12.87 3.55.84 1.47-.02 2.4-1.31 3.28-2.62 1.05-1.49 1.47-2.95 1.49-3.03-.04-.01-2.87-1.09-2.9-4.4z"></path>'+
+        '<path fill="currentColor" d="M14.37 4.69c.74-.93 1.25-2.2 1.11-3.47-1.08.05-2.43.75-3.2 1.66-.68.8-1.29 2.12-1.13 3.34 1.22.09 2.45-.61 3.22-1.53z"></path>'+
+        '</svg>';
+}
+
+function calendarIcon(){
+    return '<svg class="cfle-calendar-logo cfle-generic-calendar-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+
+        '<rect x="3.5" y="5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"></rect>'+
+        '<path d="M7.5 3v4M16.5 3v4M3.5 9h17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>'+
+        '<path d="M8 13h3v3H8zM13 13h3v3h-3z" fill="currentColor"></path>'+
+        '</svg>';
+}
+
+function featuredTag(){
+    return '<span class="cfle-tag cfle-tag--featured">'+
+        '<span class="cfle-featured-badge-star" aria-hidden="true">&#9733;</span>'+
+        '<span>Featured</span>'+
+    '</span>';
+}
+
+function renderMeta(eventItem){
+    var parts=[];
+    if(eventItem.time){
+        parts.push('<span class="cfle-meta-item">'+clockIcon()+'<span>'+escapeHtml(eventItem.time)+'</span></span>');
+    }
+    if(eventItem.location&&eventItem.location.text){
+        parts.push('<a class="cfle-meta-item cfle-location" href="'+escapeHtml(mapsUrl(eventItem.location))+'" target="_blank" rel="noopener">'+
+            locationIcon()+'<span>'+escapeHtml(eventItem.location.name||eventItem.location.text)+'</span></a>');
+    }
+    return '<div class="cfle-meta">'+parts.join('<span class="cfle-meta-divider" aria-hidden="true">|</span>')+'</div>';
+}
+
+function calendarButtonsHtml(eventItem){
+    var google='<a class="cfle-action cfle-calendar-action" href="'+escapeHtml(googleCalendarUrl(eventItem))+'" target="_blank" rel="noopener">'+googleIcon()+'<span>Add to Calendar</span></a>';
+    var other='<button class="cfle-action cfle-calendar-action cfle-ics-action" type="button" data-event-id="'+escapeHtml(eventItem.id)+'">'+calendarIcon()+'<span>Other Calendar</span></button>';
+    var apple='<button class="cfle-action cfle-calendar-action cfle-ics-action" type="button" data-event-id="'+escapeHtml(eventItem.id)+'">'+appleIcon()+'<span>Add to Calendar</span></button>';
+
+    if(isAppleDevice()){
+        return apple+google;
+    }
+    return google+other;
+}
+
+function eventDateDisplay(eventItem){
+
+    var fallback=eventItem.date||{};
+    var start=eventItem.startParts||{};
+    var end=eventItem.endParts||{};
+
+    var hasStart=
+        !!(
+            start.year&&
+            start.month&&
+            start.day
+        );
+
+    var hasEnd=
+        !!(
+            end.year&&
+            end.month&&
+            end.day
+        );
+
+    var sameDay;
+    var sameMonth;
+    var startMonth;
+    var endMonth;
+    var startWeekday;
+    var endWeekday;
+
+    if(!hasStart){
+
+        return {
+            month:(fallback.month||"").slice(0,3),
+            day:String(fallback.day||""),
+            weekday:(fallback.weekday||"").slice(0,3),
+            range:false,
+            crossMonth:false
+        };
+    }
+
+    if(!hasEnd){
+        end=start;
+    }
+
+    sameDay=
+        start.year===end.year&&
+        start.month===end.month&&
+        start.day===end.day;
+
+    sameMonth=
+        start.year===end.year&&
+        start.month===end.month;
+
+    startMonth=
+        monthName(start.month)
+        .slice(0,3);
+
+    endMonth=
+        monthName(end.month)
+        .slice(0,3);
+
+    startWeekday=
+        weekdayNameFromYmd(
+            start.year,
+            start.month,
+            start.day
+        ).slice(0,3);
+
+    endWeekday=
+        weekdayNameFromYmd(
+            end.year,
+            end.month,
+            end.day
+        ).slice(0,3);
+
+    return {
+
+        month:
+            sameMonth?
+                startMonth:
+                startMonth+"-"+endMonth,
+
+        day:
+            sameDay?
+                String(start.day):
+                String(start.day)+"-"+String(end.day),
+
+        weekday:
+            sameDay?
+                startWeekday:
+                startWeekday+"-"+endWeekday,
+
+        range:!sameDay,
+        crossMonth:!sameMonth
+    };
+}
+    
+function cardHtml(eventItem,featured,past){
+
+    var date=eventDateDisplay(eventItem);
+    var actions;
+
+    var className=
+        "cfle-card"+
+        (featured?" cfle-card--featured":"");
+
+    var dateClass=
+        "cfle-date"+
+        (date.range?" cfle-date--range":"")+
+        (date.crossMonth?" cfle-date--cross-month":"");
+
+    var monthClass=
+        "cfle-date-month"+
+        (date.crossMonth?" cfle-date-range-fit":"");
+
+    var dayClass=
+        "cfle-date-day"+
+        (date.range?" cfle-date-range-fit":"");
+
+    var weekdayClass=
+        "cfle-date-weekday"+
+        (date.range?" cfle-date-range-fit":"");
+
+    if(past){
+
+        actions=
+            '<div class="cfle-event-actions cfle-event-actions--past">'+
+                '<a class="cfle-action cfle-view-action" href="'+
+                    escapeHtml(eventItem.url)+
+                '">View Event</a>'+
+            '</div>';
+
+    } else {
+
+        actions=
+            '<div class="cfle-event-actions">'+
+                calendarButtonsHtml(eventItem)+
+                '<a class="cfle-action cfle-view-action" href="'+
+                    escapeHtml(eventItem.url)+
+                '">View Details</a>'+
+            '</div>';
+    }
+
+    return (
+        '<article class="'+className+'">'+
+
+            '<div class="'+dateClass+'">'+
+
+                '<span class="'+monthClass+'">'+
+                    escapeHtml(date.month)+
+                '</span>'+
+
+                '<span class="'+dayClass+'">'+
+                    escapeHtml(date.day)+
+                '</span>'+
+
+                '<span class="'+weekdayClass+'">'+
+                    escapeHtml(date.weekday)+
+                '</span>'+
+
+            '</div>'+
+
+            '<div class="cfle-card-body">'+
+
+                (
+                    featured?
+                        '<div class="cfle-tags">'+
+                            featuredTag()+
+                        '</div>':
+                        ''
+                )+
+
+                '<h3 class="cfle-event-title">'+
+                    '<a href="'+escapeHtml(eventItem.url)+'">'+
+                        escapeHtml(eventItem.title)+
+                    '</a>'+
+                '</h3>'+
+
+                renderMeta(eventItem)+
+
+            '</div>'+
+
+            actions+
+
+        '</article>'
+    );
+}
+    
+function findEventById(id){
+    var index;
+    for(index=0;index<state.events.length;index++){
+        if(state.events[index].id===id){
+            return state.events[index];
+        }
+    }
+    return null;
+}
+
+function bindCalendarButtons(root){
+    qsa(".cfle-ics-action",root||d).forEach(function(button){
+        if(button.getAttribute("data-cfle-bound")==="1"){
+            return;
+        }
+        button.setAttribute("data-cfle-bound","1");
+        button.addEventListener("click",function(){
+            var eventItem=findEventById(button.getAttribute("data-event-id"));
+            if(eventItem){
+                downloadIcs(eventItem);
+            }
+        });
+    });
+}
+
+function eventMatchesRange(eventItem,nowParts){
+    var currentKey;
+    var eventKey;
+    var todayDate;
+    var startOfWeek;
+    var endOfWeek;
+
+    if(state.range==="all"){
+        return true;
+    }
+
+    nowParts=
+        nowParts||
+        getNewYorkNowParts();
+
+    currentKey=
+        dateKey(
+            nowParts
+        );
+
+    eventKey=
+        dateKey(
+            eventItem.startParts
+        );
+
+    if(state.range==="thismonth"){
+        return (
+            eventItem.startParts.year===
+                nowParts.year&&
+            eventItem.startParts.month===
+                nowParts.month
+        );
+    }
+
+    if(state.range==="thisweek"){
+        todayDate=
+            new Date(
+                Date.UTC(
+                    nowParts.year,
+                    nowParts.month-1,
+                    nowParts.day
+                )
+            );
+
+        startOfWeek=
+            addDaysToParts(
+                nowParts,
+                -todayDate.getUTCDay()
+            );
+
+        endOfWeek=
+            addDaysToParts(
+                startOfWeek,
+                6
+            );
+
+        return (
+            eventKey>=
+                dateKey(startOfWeek)&&
+            eventKey<=
+                dateKey(endOfWeek)&&
+            eventKey>=
+                currentKey
+        );
+    }
+
+    return true;
+}
+
+function filteredUpcomingEvents(){
+    var search=
+        normalized(
+            state.search
+        );
+
+    /*
+     * Only calculate New York's current date once for
+     * the entire filtering pass, and not at all when
+     * the user has selected "All".
+     */
+    var nowParts=
+        state.range==="all"?
+        null:
+        getNewYorkNowParts();
+
+    return activeUpcomingEvents()
+        .filter(function(eventItem){
+
+            var haystack=
+                normalized(
+                    eventItem.title+
+                    " "+
+                    (
+                        eventItem.location?
+                        eventItem.location.text:
+                        ""
+                    )
+                );
+
+            return (
+                (
+                    !search||
+                    haystack.indexOf(search)>-1
+                )&&
+                eventMatchesRange(
+                    eventItem,
+                    nowParts
+                )
+            );
+        });
+}
+
+function renderUpcoming(){
+    var root=
+        qs("#cfle-events");
+
+    var featuredSection;
+    var mainSection;
+    var count;
+    var events;
+    var featured=[];
+    var regular=[];
+    var countHtml;
+    var featuredHtml;
+    var mainHtml;
+    var renderKey;
+
+    if(!root){
+        return;
+    }
+
+    featuredSection=
+        qs(
+            "#cfle-featured-section",
+            root
+        );
+
+    mainSection=
+        qs(
+            "#cfle-main-section",
+            root
+        );
+
+    count=
+        qs(
+            "#cfle-count",
+            root
+        );
+
+    events=
+        filteredUpcomingEvents();
+
+    events.forEach(function(eventItem){
+
+        if(eventItem.featured){
+            featured.push(
+                eventItem
+            );
+
+        } else {
+
+            regular.push(
+                eventItem
+            );
+        }
+    });
+
+    countHtml=
+        '<strong>'+
+        events.length+
+        '</strong> '+
+        (
+            events.length===1?
+            'program':
+            'programs'
+        );
+
+    featuredHtml=
+        featured.length?
+        '<h2 class="cfle-section-title">Featured</h2><div class="cfle-grid cfle-grid--featured">'+
+        featured.map(function(eventItem){
+            return cardHtml(
+                eventItem,
+                true,
+                false
+            );
+        }).join("")+
+        '</div>':
+        "";
+
+    if(regular.length){
+
+        mainHtml=
+            '<div class="cfle-grid">'+
+            regular.map(function(eventItem){
+                return cardHtml(
+                    eventItem,
+                    false,
+                    false
+                );
+            }).join("")+
+            '</div>';
+
+    } else if(!featured.length){
+
+        mainHtml=
+            state.initialLoadPending?
+            '<div class="cfle-empty"><strong>Loading upcoming programs&hellip;</strong><span>Please wait a moment.</span></div>':
+            '<div class="cfle-empty"><strong>No matching programs are currently listed.</strong><span>Please check back soon.</span></div>';
+
+    } else {
+
+        mainHtml="";
+    }
+
+    renderKey=
+        countHtml+
+        "\u0001"+
+        featuredHtml+
+        "\u0001"+
+        mainHtml;
+
+    /*
+     * Fresh data frequently equals the cached data that
+     * is already visible. Do not destroy/recreate the same
+     * card DOM and rerun all layout fitting unnecessarily.
+     */
+    if(
+        state.render.upcomingRoot===root&&
+        state.render.upcomingKey===renderKey
+    ){
+        return;
+    }
+
+    state.render.upcomingRoot=
+        root;
+
+    state.render.upcomingKey=
+        renderKey;
+
+    if(count){
+        count.innerHTML=
+            countHtml;
+    }
+
+    if(featuredSection){
+        featuredSection.innerHTML=
+            featuredHtml;
+    }
+
+    if(mainSection){
+        mainSection.innerHTML=
+            mainHtml;
+    }
+
+    bindCalendarButtons(
+        root
+    );
+
+    scheduleEventTitleFit(
+        root
+    );
+}
+
+function bindUpcomingUi(){
+    var root=qs("#cfle-events");
+    var search;
+    var toggle;
+    var panel;
+
+    if(!root||state.bound){
+        return;
+    }
+    state.bound=true;
+
+    search=qs("#cfle-search",root);
+    toggle=qs("#cfle-filter-toggle",root);
+    panel=qs("#cfle-date-panel",root);
+
+    if(search){
+        search.addEventListener("input",function(){
+            state.search=search.value||"";
+            renderUpcoming();
+        });
+    }
+
+    if(toggle&&panel){
+        toggle.addEventListener("click",function(){
+            var open=panel.className.indexOf(" open")>-1;
+            panel.className=open?panel.className.replace(/\s*open/g,""):panel.className+" open";
+            toggle.setAttribute("aria-expanded",open?"false":"true");
+        });
+    }
+
+    qsa(".cfle-chip-btn[data-range]",root).forEach(function(button){
+        button.addEventListener("click",function(){
+            qsa(".cfle-chip-btn[data-range]",root).forEach(function(other){
+                other.className=other.className.replace(/\s*active/g,"");
+            });
+            button.className+=" active";
+            state.range=button.getAttribute("data-range")||"all";
+            renderUpcoming();
+        });
+    });
+}
+
+function findPendingHomepageMarkerWidget(){
+    var widgets=
+        qsa(
+            ".chabad_updates"
+        );
+
+    var index;
+    var text;
+
+    for(
+        index=0;
+        index<widgets.length;
+        index++
+    ){
+        text=
+            oneLine(
+                widgets[index].textContent||
+                widgets[index].innerText||
+                ""
+            );
+
+        if(
+            text.indexOf(
+                "CFLE_PAGE_EVENTS"
+            )>-1
+        ){
+            return widgets[index];
+        }
+    }
+
+    return null;
+}
+
+function findHomepageMarkerWidget(){
+    return (
+        qs(
+            ".chabad_updates.cfle-home-events-widget"
+        )||
+        findPendingHomepageMarkerWidget()
+    );
+}
+
+function renderHomepage(){
+    var widget=
+        findHomepageMarkerWidget();
+
+    var events;
+    var rows;
+    var html;
+
+    if(!widget){
+        return;
+    }
+
+    events=
+        state.events
+        .filter(function(eventItem){
+
+            return (
+                (
+                    eventItem.homepage||
+                    eventItem.featured
+                )&&
+                isUpcoming(
+                    eventItem
+                )
+            );
+        })
+        .sort(function(first,second){
+
+            if(
+                !!first.featured!==
+                !!second.featured
+            ){
+                return (
+                    first.featured?
+                    -1:
+                    1
+                );
+            }
+
+            return (
+                first.startTs-
+                second.startTs
+            );
+        })
+        .slice(
+            0,
+            CFG.homepageLimit
+        );
+
+    rows=
+        events.map(function(eventItem){
+
+            var date=
+                eventDateDisplay(
+                    eventItem
+                );
+
+            var homeDateClass=
+                "cfle-home-date-box"+
+                (
+                    date.range?
+                    " cfle-home-date-box--range":
+                    ""
+                )+
+                (
+                    date.crossMonth?
+                    " cfle-home-date-box--cross-month":
+                    ""
+                );
+
+            var homeMonthClass=
+                "cfle-home-date-month"+
+                (
+                    date.crossMonth?
+                    " cfle-date-range-fit":
+                    ""
+                );
+
+            var homeDayClass=
+                "cfle-home-date-day"+
+                (
+                    date.range?
+                    " cfle-date-range-fit":
+                    ""
+                );
+
+            var homeWeekdayClass=
+                "cfle-home-date-weekday"+
+                (
+                    date.range?
+                    " cfle-date-range-fit":
+                    ""
+                );
+
+            return (
+                '<a class="cfle-home-event'+
+                    (
+                        eventItem.featured?
+                        ' cfle-home-event--featured':
+                        ''
+                    )+
+                    '" href="'+
+                    escapeHtml(
+                        eventItem.url
+                    )+
+                    '">'+
+
+                    '<span class="'+
+                        homeDateClass+
+                    '">'+
+
+                        '<span class="'+
+                            homeMonthClass+
+                        '">'+
+                            escapeHtml(
+                                date.month
+                            )+
+                        '</span>'+
+
+                        '<span class="'+
+                            homeDayClass+
+                        '">'+
+                            escapeHtml(
+                                date.day
+                            )+
+                        '</span>'+
+
+                        '<span class="'+
+                            homeWeekdayClass+
+                        '">'+
+                            escapeHtml(
+                                date.weekday
+                            )+
+                        '</span>'+
+
+                    '</span>'+
+
+                    '<span class="cfle-home-event-content">'+
+
+                        '<strong class="cfle-home-event-title">'+
+                            escapeHtml(
+                                eventItem.title
+                            )+
+                        '</strong>'+
+
+                        (
+                            eventItem.time?
+                            '<span class="cfle-home-event-time">'+
+                                clockIcon()+
+                                '<span>'+
+                                    escapeHtml(
+                                        eventItem.time
+                                    )+
+                                '</span>'+
+                            '</span>':
+                            ''
+                        )+
+
+                    '</span>'+
+
+                    (
+                        eventItem.featured?
+                        '<span class="cfle-home-featured-star" aria-hidden="true">&#9733;</span>':
+                        ''
+                    )+
+
+                    '<span class="cfle-home-event-arrow" aria-hidden="true">'+
+                        '&#8594;'+
+                    '</span>'+
+
+                '</a>'
+            );
+
+        })
+        .join("");
+
+    html=
+        '<div class="cfle-home-events-shell">'+
+
+            '<h2 class="cfle-home-events-heading">'+
+                'Upcoming at Chabad'+
+            '</h2>'+
+
+            '<div class="cfle-home-events-list" data-cfle-count="'+
+                String(events.length)+
+            '">'+
+
+                (
+                    rows||
+                    (
+                        state.initialLoadPending?
+                        '<div class="cfle-home-events-empty">Loading upcoming programs&hellip;</div>':
+                        '<div class="cfle-home-events-empty">New programs will be posted soon.</div>'
+                    )
+                )+
+
+            '</div>'+
+
+            '<a class="cfle-home-events-more" href="'+
+                escapeHtml(
+                    CFG.upcomingUrl
+                )+
+            '">'+
+                'View All Upcoming Events <span aria-hidden="true">&#8250;</span>'+
+            '</a>'+
+
+        '</div>';
+
+    if(
+        widget.className.indexOf(
+            "cfle-home-events-widget"
+        )===-1
+    ){
+        widget.className+=
+            " cfle-home-events-widget";
+    }
+
+    widget.className=
+        widget.className.replace(
+            /\s*cfle-home-events-pending/g,
+            ""
+        );
+
+    /*
+     * If the fresh scan produced the exact same homepage
+     * contents already displayed from cache, don't recreate
+     * all of those nodes and rerun fitting.
+     *
+     * A replacement ChabadOne widget still gets rendered,
+     * because its DOM-node reference is different.
+     */
+    if(
+        state.render.homepageWidget!==widget||
+        state.render.homepageKey!==html
+    ){
+        state.render.homepageWidget=
+            widget;
+
+        state.render.homepageKey=
+            html;
+
+        widget.innerHTML=
+            html;
+
+        scheduleEventTitleFit(
+            widget
+        );
+    }
+
+    widget.style.visibility=
+        "visible";
+}
+
+function startHomepageWatcher(){
+    var attempts=0;
+    var timer=null;
+    var observer=null;
+    var stopTimer=null;
+
+    function homepageNeedsRender(){
+        var pending=
+            findPendingHomepageMarkerWidget();
+
+        var widget;
+        var text;
+
+        if(pending){
+            return true;
+        }
+
+        widget=
+            qs(
+                ".chabad_updates.cfle-home-events-widget"
+            );
+
+        if(!widget){
+            return false;
+        }
+
+        /*
+         * Catch the Custom Header safety fallback if it
+         * converted the raw marker before events.js mounted.
+         */
+        if(state.events.length){
+            text=
+                oneLine(
+                    widget.textContent||
+                    widget.innerText||
+                    ""
+                );
+
+            if(
+                text.indexOf(
+                    "Loading upcoming programs"
+                )>-1
+            ){
+                return true;
+            }
+        }
+
+        /*
+         * Catch a complete ChabadOne widget replacement.
+         */
+        return (
+            state.render.homepageWidget&&
+            state.render.homepageWidget!==widget
+        );
+    }
+
+    function tryHomepageRender(){
+
+        if(
+            !homepageNeedsRender()
+        ){
+            return false;
+        }
+
+        renderHomepage();
+
+        return true;
+    }
+
+    function stopWatching(){
+
+        if(timer){
+            window.clearInterval(
+                timer
+            );
+
+            timer=null;
+        }
+
+        if(observer){
+            observer.disconnect();
+
+            observer=null;
+        }
+
+        if(stopTimer){
+            window.clearTimeout(
+                stopTimer
+            );
+
+            stopTimer=null;
+        }
+    }
+
+    /*
+     * renderAll() is shared with Upcoming and Past.
+     * Never start this homepage observer on those pages.
+     */
+    if(
+        state.homeWatcherStarted||
+        !isHomepageContext()
+    ){
+        return;
+    }
+
+    state.homeWatcherStarted=true;
+
+    renderHomepage();
+
+    timer=
+        window.setInterval(
+            function(){
+
+                attempts++;
+
+                if(
+                    tryHomepageRender()
+                ){
+                    window.clearInterval(
+                        timer
+                    );
+
+                    timer=null;
+
+                } else if(
+                    attempts>=40
+                ){
+                    window.clearInterval(
+                        timer
+                    );
+
+                    timer=null;
+                }
+            },
+            250
+        );
+
+    if(
+        window.MutationObserver&&
+        d.body
+    ){
+        observer=
+            new MutationObserver(
+                function(){
+
+                    tryHomepageRender();
+                }
+            );
+
+        observer.observe(
+            d.body,
+            {
+                childList:true,
+                subtree:true
+            }
+        );
+    }
+
+    /*
+     * ChabadOne should have settled long before this.
+     * Don't monitor every DOM mutation forever.
+     */
+    stopTimer=
+        window.setTimeout(
+            stopWatching,
+            CFG.homepageWatchMs
+        );
+}
+
+function renderPast(){
+    var root=
+        qs(
+            "#cfle-past-events"
+        );
+
+    var events;
+    var html;
+
+    if(!root){
+        return;
+    }
+
+    events=
+        pastEvents();
+
+    html=
+        events.length?
+        '<div class="cfle-past-intro">Recently concluded programs</div><div class="cfle-grid cfle-grid--past">'+
+        events.map(function(eventItem){
+            return cardHtml(
+                eventItem,
+                false,
+                true
+            );
+        }).join("")+
+        '</div>':
+        '<div class="cfle-empty"><strong>No new archived events yet.</strong><span>Your existing historical gallery remains below.</span></div>';
+
+    if(
+        state.render.pastRoot===root&&
+        state.render.pastKey===html
+    ){
+        return;
+    }
+
+    state.render.pastRoot=
+        root;
+
+    state.render.pastKey=
+        html;
+
+    root.innerHTML=
+        html;
+
+    scheduleEventDateRangeFit(
+        root
+    );
+}
+
+function hideNativeSourceContainers(events){
+    (events||[]).forEach(function(eventItem){
+        if(eventItem.sourceContainer&&eventItem.sourceContainer.className.indexOf("cfle-native-event-source")===-1){
+            eventItem.sourceContainer.className+=" cfle-native-event-source";
+        }
+    });
+}
+
+function renderAll(){
+    bindUpcomingUi();
+    renderUpcoming();
+    renderHomepage();
+    startHomepageWatcher();
+    renderPast();
+}
+
+function splitCachedEvents(events){
+    state.pageEvents=[];
+    state.registryEvents=[];
+    state.calendarLox=null;
+
+    (events||[]).forEach(function(eventItem){
+        if(
+            eventItem.sourceType==="calendar-lox"||
+            normalized(eventItem.title)===normalized(CFG.lox.title)||
+            canonicalPath(eventItem.url)===canonicalPath(CFG.lox.url)
+        ){
+            if(!state.calendarLox||eventItem.startTs<state.calendarLox.startTs){
+                state.calendarLox=eventItem;
+            }
+        } else if(
+            eventItem.sourceType==="registry-target"||
+            eventItem.sourceType==="page-meta"
+        ){
+            state.registryEvents.push(eventItem);
+        } else {
+            state.pageEvents.push(eventItem);
+        }
+    });
+}
+
+/*
+ * Coalesce near-simultaneous Calendar / registry updates into
+ * one paint. This changes no layout or rendering behavior.
+ */
+var cfleRefreshQueued=false;
+var cfleRefreshWritePending=false;
+
+function scheduleRefresh(writeToStorage){
+    cfleRefreshWritePending=
+        cfleRefreshWritePending||
+        writeToStorage;
+
+    if(cfleRefreshQueued){
+        return;
+    }
+
+    cfleRefreshQueued=true;
+
+    (window.requestAnimationFrame||function(fn){
+        return window.setTimeout(fn,16);
+    })(function(){
+        var write=cfleRefreshWritePending;
+
+        cfleRefreshQueued=false;
+        cfleRefreshWritePending=false;
+
+        refreshCombinedEvents(write);
+    });
+}
+
+function refreshCombinedEvents(writeToStorage){
+    state.events=addSpecialEvents(
+        mergeEventLists(
+            state.pageEvents,
+            state.registryEvents
+        )
+    );
+
+    state.initialLoadPending=
+        !(
+            state.pageDone&&
+            state.registryDone&&
+            state.calendarDone
+        );
+
+    renderAll();
+
+    if(writeToStorage){
+        writeCache(state.events);
+    }
+}
+
+function processRegistrySnapshot(parsed){
+    var registryScanBuffer=[];
+
+    state.pageEvents=
+        parsed.events||[];
+
+    state.pageDone=true;
+    state.pageSuccess=true;
+
+    /*
+     * Direct Web Documents are already known.
+     * Keep cached New Link targets on screen while
+     * the current target pages refresh.
+     */
+    scheduleRefresh(true);
+
+    requestRegistryTargets(
+        parsed.candidates||[],
+
+        function(eventItem){
+
+            registryScanBuffer.push(
+                eventItem
+            );
+
+            state.registryEvents=
+                mergeEventLists(
+                    state.registryEvents,
+                    [eventItem]
+                );
+
+            scheduleRefresh(true);
+        },
+
+        function(targetError){
+
+            state.registryDone=true;
+
+            state.registrySuccess=
+                !targetError;
+
+            /*
+             * If every current target was successfully
+             * checked, the fresh registry is authoritative.
+             *
+             * If one target failed temporarily, preserve
+             * its cached fallback rather than making the
+             * event vanish.
+             */
+            if(!targetError){
+                state.registryEvents=
+                    registryScanBuffer;
+            }
+
+            scheduleRefresh(true);
+        }
+    );
+}
+
+window.CFLE_REFIT_EVENT_TITLES=function(root){
+    scheduleEventTitleFit(
+        root||
+        document
+    );
+};
+
+window.CFLE_EVENTS_STATUS=function(){
+    var saved=null;
+
+    var widget=
+        findHomepageMarkerWidget();
+
+    var pending=
+        findPendingHomepageMarkerWidget();
+
+    var widgetText="";
+
+    try{
+        saved=
+            JSON.parse(
+                window.localStorage.getItem(
+                    CFG.cacheKey
+                )||
+                "null"
+            );
+
+    } catch(error){
+    }
+
+    if(widget){
+        widgetText=
+            oneLine(
+                widget.textContent||
+                widget.innerText||
+                ""
+            );
+    }
+
+    return {
+        version:
+            CFG.version,
+
+        buildId:
+            CFG.buildId,
+
+        context:{
+            homepage:
+                isHomepageContext(),
+
+            upcomingPage:
+                !!qs("#cfle-events"),
+
+            pastPage:
+                !!qs("#cfle-past-events")
+        },
+
+        state:{
+            events:
+                state.events.length,
+
+            pageEvents:
+                state.pageEvents.length,
+
+            registryEvents:
+                state.registryEvents.length,
+
+            hasCalendarLox:
+                !!state.calendarLox,
+
+            pageDone:
+                state.pageDone,
+
+            registryDone:
+                state.registryDone,
+
+            calendarDone:
+                state.calendarDone,
+
+            pageSuccess:
+                state.pageSuccess,
+
+            registrySuccess:
+                state.registrySuccess,
+
+            calendarSuccess:
+                state.calendarSuccess,
+
+            initialLoadPending:
+                state.initialLoadPending
+        },
+
+        cache:{
+            present:
+                !!saved,
+
+            buildId:
+                saved?
+                saved.buildId:
+                null,
+
+            eventCount:
+                saved&&saved.events?
+                saved.events.length:
+                0,
+
+            ageMs:
+                saved&&saved.time?
+                Date.now()-saved.time:
+                null
+        },
+
+        homepageWidget:{
+            markerPresent:
+                !!pending,
+
+            widgetPresent:
+                !!widget,
+
+            eventRows:
+                widget?
+                qsa(
+                    ".cfle-home-event",
+                    widget
+                ).length:
+                0,
+
+            loading:
+                widgetText.indexOf(
+                    "Loading upcoming programs"
+                )>-1
+        },
+
+        network:
+            window.CFLE_EVENTS_REGISTRY_DEBUG||
+            null
+    };
+};
+    
+function loadEvents(){
+    var cached;
+    var currentEvents=[];
+
+    var upcomingRoot=
+        qs(
+            "#cfle-events"
+        );
+
+    var pastRoot=
+        qs(
+            "#cfle-past-events"
+        );
+
+    var isHome=
+        isHomepageContext();
+
+    var needsLox=
+        isHome||
+        !!upcomingRoot;
+
+    /*
+     * Don't do event-network work on ordinary site pages.
+     */
+    if(
+        !isHome&&
+        !upcomingRoot&&
+        !pastRoot
+    ){
+        return;
+    }
+
+    /*
+     * First paint from the last-known cache.
+     */
+    cached=
+        readCache();
+
+    splitCachedEvents(
+        cached
+    );
+
+    /*
+     * Upcoming itself already contains native direct
+     * Web Document information, so continue parsing that
+     * immediately exactly as before.
+     */
+    if(upcomingRoot){
+
+        currentEvents=
+            parseIndexEvents(
+                d,
+                true
+            );
+
+        if(currentEvents.length){
+
+            hideNativeSourceContainers(
+                currentEvents
+            );
+
+            state.pageEvents=
+                currentEvents;
+        }
+    }
+
+    /*
+     * Past Events can never display recurring Lox & Learn,
+     * so a Past-only page doesn't need to request Calendar.
+     */
+    if(!needsLox){
+
+        state.calendarLox=
+            null;
+
+        state.calendarDone=
+            true;
+
+        state.calendarSuccess=
+            true;
+    }
+
+    /*
+     * Cached/direct events appear immediately.
+     */
+    refreshCombinedEvents(
+        false
+    );
+
+    /*
+     * Homepage + Upcoming:
+     * refresh Lox in parallel.
+     */
+    if(needsLox){
+
+        requestCalendarLox(
+            function(error,eventItem){
+
+                state.calendarDone=
+                    true;
+
+                state.calendarSuccess=
+                    !error;
+
+                if(!error){
+                    state.calendarLox=
+                        eventItem||
+                        null;
+                }
+
+                scheduleRefresh(
+                    state.calendarSuccess||
+                    state.pageSuccess||
+                    state.registrySuccess
+                );
+            }
+        );
+    }
+
+    /*
+     * ALWAYS perform one fresh request to Upcoming at Chabad.
+     *
+     * This is deliberate: cached data gives us speed, while
+     * the fresh timestamped request means a newly published or
+     * edited event can replace that cached information right away.
+     */
+    requestSource(
+        function(error,html){
+
+            var parsed;
+
+            if(
+                error||
+                !html
+            ){
+                state.pageDone=true;
+                state.registryDone=true;
+
+                state.pageSuccess=false;
+                state.registrySuccess=false;
+
+                scheduleRefresh(
+                    state.calendarSuccess
+                );
+
+                return;
+            }
+
+            try{
+                parsed=
+                    parseRegistrySourceHtml(
+                        html
+                    );
+
+                processRegistrySnapshot(
+                    parsed
+                );
+
+            } catch(parseError){
+
+                state.pageDone=true;
+                state.registryDone=true;
+
+                state.pageSuccess=false;
+                state.registrySuccess=false;
+
+                scheduleRefresh(
+                    state.calendarSuccess
+                );
+            }
+        }
+    );
+}
+
+function start(){
+    if(!window.CFLE_EVENT_TITLE_RESIZE_BOUND){
+        window.CFLE_EVENT_TITLE_RESIZE_BOUND=true;
+
+        var titleResizeTimer;
+
+        window.addEventListener(
+            "resize",
+            function(){
+                window.clearTimeout(titleResizeTimer);
+                titleResizeTimer=window.setTimeout(
+                    function(){
+                        scheduleEventTitleFit(document);
+                    },
+                    120
+                );
+            }
+        );
+    }
+
+    loadEvents();
+}
+
+if(d.readyState==="loading"){
+    d.addEventListener("DOMContentLoaded",start);
+} else {
+    start();
+}
+
+})();
